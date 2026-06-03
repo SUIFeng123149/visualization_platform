@@ -18,6 +18,8 @@ MYSQL_USERNAME="root"
 MYSQL_PASSWORD="your_password"
 ```
 
+`MYSQL_USERNAME` defaults to `root`; `MYSQL_PASSWORD` has no default and should be provided outside source control.
+
 Windows PowerShell example:
 
 ```powershell

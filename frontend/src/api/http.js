@@ -1,7 +1,10 @@
-const API_PREFIX = ''
+const API_PREFIX = import.meta.env.VITE_API_BASE_URL ?? ''
+const DEFAULT_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 15000)
 
 export async function request(path, params = {}) {
   const url = new URL(`${API_PREFIX}${path}`, window.location.origin)
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -9,7 +12,22 @@ export async function request(path, params = {}) {
     }
   })
 
-  const response = await fetch(url)
+  let response
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('接口请求超时，请稍后重试')
+    }
+    throw new Error('接口请求失败，请检查后端服务或网络连接')
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`)

@@ -1,5 +1,6 @@
 <template>
-  <div ref="chartEl" class="chart small" role="img" aria-label="评论情感占比环图"></div>
+  <div v-if="hasData" ref="chartEl" class="chart small" role="img" aria-label="评论情感占比环图"></div>
+  <div v-else class="empty-state small">暂无情感数据</div>
 </template>
 
 <script setup>
@@ -15,6 +16,7 @@ const props = defineProps({
 
 const chartEl = ref(null)
 const dataRef = toRef(props, 'data')
+const hasData = computed(() => props.data.some((item) => item.totalCount > 0))
 const chartData = computed(() => {
   const positive = props.data.reduce((sum, item) => sum + item.positiveCount, 0)
   const neutral = props.data.reduce((sum, item) => sum + item.neutralCount, 0)
@@ -28,7 +30,7 @@ const chartData = computed(() => {
 })
 
 useEChart(chartEl, () => ({
-  color: ['#13a46f', '#0f7cff', '#e36b2c'],
+  color: ['#059669', '#3B82F6', '#D97706'],
   tooltip: { trigger: 'item' },
   legend: { bottom: 8 },
   series: [

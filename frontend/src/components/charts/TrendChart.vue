@@ -1,5 +1,6 @@
 <template>
-  <div ref="chartEl" class="chart" role="img" aria-label="评论、弹幕和情感趋势图"></div>
+  <div v-if="hasData" ref="chartEl" class="chart" role="img" aria-label="评论、弹幕和情感趋势图"></div>
+  <div v-else class="empty-state">暂无趋势数据</div>
 </template>
 
 <script setup>
@@ -21,6 +22,7 @@ const props = defineProps({
 const chartEl = ref(null)
 const modeRef = toRef(props, 'mode')
 const dataRef = toRef(props, 'data')
+const hasData = computed(() => props.data.length > 0)
 
 const groupedData = computed(() => {
   const buckets = new Map()
@@ -63,7 +65,7 @@ const chartData = computed(() => ({
 useEChart(
   chartEl,
   () => ({
-    color: ['#0f7cff', '#13a46f', '#e36b2c'],
+    color: ['#3B82F6', '#059669', '#D97706'],
     tooltip: { trigger: 'axis' },
     legend: { top: 8, right: 18, data: ['评论数', '弹幕数', '平均情感'] },
     grid: baseGrid(),
@@ -71,7 +73,7 @@ useEChart(
     yAxis: {
       type: 'value',
       axisLabel: { formatter: '{value}' },
-      splitLine: { lineStyle: { color: '#e7edf5' } },
+      splitLine: { lineStyle: { color: '#E2E8F0' } },
     },
     series: [
       {

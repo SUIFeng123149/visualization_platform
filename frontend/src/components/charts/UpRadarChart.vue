@@ -1,5 +1,6 @@
 <template>
-  <div ref="chartEl" class="chart small" role="img" aria-label="UP主能力雷达图"></div>
+  <div v-if="hasData" ref="chartEl" class="chart small" role="img" aria-label="UP主能力雷达图"></div>
+  <div v-else class="empty-state small">暂无UP主表现数据</div>
 </template>
 
 <script setup>
@@ -15,6 +16,7 @@ const props = defineProps({
 
 const chartEl = ref(null)
 const dataRef = toRef(props, 'data')
+const hasData = computed(() => props.data.length > 0)
 const indicators = [
   { name: '视频数', max: 10 },
   { name: '平均播放', max: 2000000 },
@@ -36,14 +38,14 @@ const radarSeries = computed(() =>
 )
 
 useEChart(chartEl, () => ({
-  color: ['#0f7cff', '#e36b2c', '#13a46f'],
+  color: ['#3B82F6', '#D97706', '#059669'],
   tooltip: {},
   legend: { bottom: 8, data: radarSeries.value.map((item) => item.name) },
   radar: {
     radius: '62%',
     indicator: indicators,
-    splitLine: { lineStyle: { color: '#dbe4ef' } },
-    splitArea: { areaStyle: { color: ['#ffffff', '#f8fafc'] } },
+    splitLine: { lineStyle: { color: '#E2E8F0' } },
+    splitArea: { areaStyle: { color: ['#FFFFFF', '#F8FAFC'] } },
   },
   series: [
     {

@@ -11,6 +11,19 @@
         @refresh="handleRefresh"
       />
 
+      <el-alert
+        v-if="loadError"
+        class="load-error"
+        type="error"
+        :title="loadError"
+        show-icon
+        :closable="false"
+      >
+        <template #default>
+          <el-button link type="primary" @click="handleRefresh">重新加载</el-button>
+        </template>
+      </el-alert>
+
       <div class="export-toolbar">
         <div>
           <strong>{{ exportMeta.title }}</strong>
@@ -194,6 +207,7 @@ const activeModule = ref('overview')
 const trendMode = ref('日')
 const keyword = ref('')
 const loading = ref(false)
+const loadError = ref('')
 const selectedBvid = ref('')
 const heatRank = ref([])
 const videoSentiments = ref([])
@@ -335,11 +349,17 @@ const taskCards = computed(() => recommendations)
 
 watch(selectedBvid, async (bvid) => {
   if (!bvid) return
-  danmakuTimeline.value = await fetchDanmakuTimeline(bvid)
+  try {
+    danmakuTimeline.value = await fetchDanmakuTimeline(bvid)
+  } catch (error) {
+    loadError.value = error.message || '弹幕数据加载失败'
+    ElMessage.error(loadError.value)
+  }
 })
 
 async function loadDashboardData() {
   loading.value = true
+  loadError.value = ''
   try {
     const [heatRankData, sentimentData, trendData, keywordData, upData] = await Promise.all([
       fetchHeatRank(10),
@@ -358,7 +378,8 @@ async function loadDashboardData() {
       ? await fetchNegativeComments({ bvid: selectedBvid.value, limit: 20 })
       : await fetchNegativeComments({ limit: 20 })
   } catch (error) {
-    ElMessage.error(error.message || '数据加载失败')
+    loadError.value = error.message || '数据加载失败'
+    ElMessage.error(loadError.value)
   } finally {
     loading.value = false
   }
@@ -366,7 +387,9 @@ async function loadDashboardData() {
 
 async function handleRefresh() {
   await loadDashboardData()
-  ElMessage.success('数据已刷新')
+  if (!loadError.value) {
+    ElMessage.success('数据已刷新')
+  }
 }
 
 async function handleFiltersChange(nextFilters) {

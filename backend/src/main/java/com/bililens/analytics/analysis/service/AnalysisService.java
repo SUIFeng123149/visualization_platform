@@ -32,6 +32,9 @@ public class AnalysisService {
     }
 
     public List<SentimentTrendDto> getSentimentTrend(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate must be earlier than or equal to endDate");
+        }
         return analysisRepository.findSentimentTrend(toSqlDate(startDate), toSqlDate(endDate));
     }
 

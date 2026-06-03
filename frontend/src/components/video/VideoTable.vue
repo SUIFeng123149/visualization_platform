@@ -20,8 +20,8 @@
 
     <el-table
       :data="videos"
+      empty-text="暂无视频数据"
       style="width: 100%"
-      :header-cell-style="{ background: '#f8fafc', color: '#475569' }"
     >
       <el-table-column label="视频" min-width="300">
         <template #default="{ row, $index }">

@@ -44,6 +44,16 @@ class AnalysisControllerTest {
     }
 
     @Test
+    void sentimentTrendRejectsInvalidDateRange() throws Exception {
+        mockMvc.perform(get("/api/analysis/sentiment/trend")
+                        .param("startDate", "2026-05-24")
+                        .param("endDate", "2026-05-22"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("startDate must be earlier than or equal to endDate"));
+    }
+
+    @Test
     void negativeCommentsCanBeFilteredByBvid() throws Exception {
         mockMvc.perform(get("/api/analysis/comments/negative")
                         .param("bvid", "BV001")

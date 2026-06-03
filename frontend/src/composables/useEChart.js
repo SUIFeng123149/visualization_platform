@@ -1,12 +1,38 @@
-import * as echarts from 'echarts'
+import { BarChart, LineChart, PieChart, RadarChart, ScatterChart } from 'echarts/charts'
+import {
+  GridComponent,
+  LegendComponent,
+  RadarComponent,
+  TitleComponent,
+  TooltipComponent,
+} from 'echarts/components'
+import * as echarts from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
 import { nextTick, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
+
+echarts.use([
+  BarChart,
+  LineChart,
+  PieChart,
+  RadarChart,
+  ScatterChart,
+  GridComponent,
+  LegendComponent,
+  RadarComponent,
+  TitleComponent,
+  TooltipComponent,
+  CanvasRenderer,
+])
 
 export function useEChart(targetRef, optionFactory, sources = []) {
   const chart = shallowRef(null)
   let resizeObserver
 
   function render() {
-    if (!targetRef.value) return
+    if (!targetRef.value) {
+      dispose()
+      return
+    }
 
     if (!chart.value) {
       chart.value = echarts.init(targetRef.value)
@@ -18,6 +44,11 @@ export function useEChart(targetRef, optionFactory, sources = []) {
 
   function resize() {
     chart.value?.resize()
+  }
+
+  function dispose() {
+    chart.value?.dispose()
+    chart.value = null
   }
 
   onMounted(async () => {
@@ -33,7 +64,7 @@ export function useEChart(targetRef, optionFactory, sources = []) {
   onBeforeUnmount(() => {
     window.removeEventListener('resize', resize)
     resizeObserver?.disconnect()
-    chart.value?.dispose()
+    dispose()
   })
 
   if (sources.length > 0) {

@@ -15,9 +15,15 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(400, exception.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException exception) {
+        return ApiResponse.error(400, exception.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleException(Exception exception) {
-        return ApiResponse.error(500, exception.getMessage());
+        return ApiResponse.error(500, "Internal server error");
     }
 }
