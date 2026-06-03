@@ -22,6 +22,13 @@ public class AnalysisRepository {
         this.jdbcClient = jdbcClient;
     }
 
+    /**
+     * NOTE: The {@code :param IS NULL OR column = :param} pattern used in several queries
+     * below may cause parameter sniffing issues in MySQL under high data volumes.
+     * For production scale-up, consider building dynamic SQL in the Service layer
+     * or using UNION ALL with separate branches for null and non-null parameters.
+     */
+
     public List<VideoHeatRankDto> findVideoHeatRank(int limit) {
         return jdbcClient.sql("""
                         select bvid, title, up_name, category, view_count, like_count, coin_count,

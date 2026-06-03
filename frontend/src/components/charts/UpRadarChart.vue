@@ -17,13 +17,25 @@ const props = defineProps({
 const chartEl = ref(null)
 const dataRef = toRef(props, 'data')
 const hasData = computed(() => props.data.length > 0)
-const indicators = [
-  { name: '视频数', max: 10 },
-  { name: '平均播放', max: 2000000 },
-  { name: '平均热度', max: 700000 },
-  { name: '平均情感', max: 1 },
-  { name: '点赞总量', max: 50000 },
-]
+const indicators = computed(() => {
+  const items = props.data
+  if (!items.length) {
+    return [
+      { name: '视频数', max: 1 },
+      { name: '平均播放', max: 1 },
+      { name: '平均热度', max: 1 },
+      { name: '平均情感', max: 1 },
+      { name: '点赞总量', max: 1 },
+    ]
+  }
+  return [
+    { name: '视频数', max: Math.max(1, ...items.map((i) => i.videoCount)) * 1.5 },
+    { name: '平均播放', max: Math.max(1, ...items.map((i) => i.avgViewCount)) * 1.3 },
+    { name: '平均热度', max: Math.max(1, ...items.map((i) => i.avgHeatScore)) * 1.3 },
+    { name: '平均情感', max: 1 },
+    { name: '点赞总量', max: Math.max(1, ...items.map((i) => i.totalLikeCount)) * 1.3 },
+  ]
+})
 const radarSeries = computed(() =>
   props.data.slice(0, 3).map((item) => ({
     name: item.upName,
@@ -43,7 +55,7 @@ useEChart(chartEl, () => ({
   legend: { bottom: 8, data: radarSeries.value.map((item) => item.name) },
   radar: {
     radius: '62%',
-    indicator: indicators,
+    indicator: indicators.value,
     splitLine: { lineStyle: { color: '#E2E8F0' } },
     splitArea: { areaStyle: { color: ['#FFFFFF', '#F8FAFC'] } },
   },
@@ -53,5 +65,5 @@ useEChart(chartEl, () => ({
       data: radarSeries.value,
     },
   ],
-}), [dataRef])
+}), [dataRef, indicators])
 </script>

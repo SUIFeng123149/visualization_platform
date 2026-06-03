@@ -8,6 +8,7 @@ import com.bililens.analytics.analysis.dto.UpPerformanceDto;
 import com.bililens.analytics.analysis.dto.VideoHeatRankDto;
 import com.bililens.analytics.analysis.dto.VideoSentimentDto;
 import com.bililens.analytics.analysis.repository.AnalysisRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.sql.Date;
@@ -23,14 +24,17 @@ public class AnalysisService {
         this.analysisRepository = analysisRepository;
     }
 
+    @Cacheable(value = "videoHeatRank", key = "#limit")
     public List<VideoHeatRankDto> getVideoHeatRank(int limit) {
         return analysisRepository.findVideoHeatRank(limit);
     }
 
+    @Cacheable("videoSentiments")
     public List<VideoSentimentDto> getVideoSentiments() {
         return analysisRepository.findVideoSentiments();
     }
 
+    @Cacheable(value = "sentimentTrend", key = "{#startDate, #endDate}")
     public List<SentimentTrendDto> getSentimentTrend(LocalDate startDate, LocalDate endDate) {
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("startDate must be earlier than or equal to endDate");
@@ -38,18 +42,22 @@ public class AnalysisService {
         return analysisRepository.findSentimentTrend(toSqlDate(startDate), toSqlDate(endDate));
     }
 
+    @Cacheable(value = "danmakuTimeline", key = "#bvid != null ? #bvid : 'all'")
     public List<DanmakuTimelineDto> getDanmakuTimeline(String bvid) {
         return analysisRepository.findDanmakuTimeline(bvid);
     }
 
+    @Cacheable(value = "keywords", key = "{#dimensionType, #dimensionValue, #limit}")
     public List<KeywordTopDto> getKeywords(String dimensionType, String dimensionValue, int limit) {
         return analysisRepository.findKeywords(dimensionType, dimensionValue, limit);
     }
 
+    @Cacheable(value = "upPerformance", key = "#limit")
     public List<UpPerformanceDto> getUpPerformance(int limit) {
         return analysisRepository.findUpPerformance(limit);
     }
 
+    @Cacheable(value = "negativeComments", key = "{#bvid != null ? #bvid : 'all', #limit}")
     public List<NegativeCommentDto> getNegativeComments(String bvid, int limit) {
         return analysisRepository.findNegativeComments(bvid, limit);
     }

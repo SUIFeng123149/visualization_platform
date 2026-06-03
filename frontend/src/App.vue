@@ -1,6 +1,10 @@
 <template>
   <el-container class="app-shell" v-loading="loading">
-    <AppSidebar :items="navItems" :active-key="activeModule" @change="activeModule = $event" />
+    <AppSidebar
+      :items="navItems"
+      :active-key="activeModule"
+      @change="navigate"
+    />
 
     <el-main class="main">
       <DashboardHeader
@@ -10,19 +14,6 @@
         @update:filters="handleFiltersChange"
         @refresh="handleRefresh"
       />
-
-      <el-alert
-        v-if="loadError"
-        class="load-error"
-        type="error"
-        :title="loadError"
-        show-icon
-        :closable="false"
-      >
-        <template #default>
-          <el-button link type="primary" @click="handleRefresh">重新加载</el-button>
-        </template>
-      </el-alert>
 
       <div class="export-toolbar">
         <div>
@@ -36,187 +27,61 @@
 
       <MetricGrid :metrics="moduleMetrics" />
 
-      <template v-if="activeModule === 'overview'">
-        <section class="overview-columns">
-          <div class="stack">
-            <ChartPanel title="播放量 / 互动量动态趋势" description="用于观察评论、弹幕和情感随时间的变化节奏。">
-              <template #actions>
-                <el-segmented v-model="trendMode" :options="['日', '周', '月']" />
-              </template>
-              <TrendChart :mode="trendMode" :data="sentimentTrend" />
-            </ChartPanel>
-
-            <ChartPanel title="弹幕时间轴高峰点" description="散点大小代表同一时间段弹幕密度，用来定位视频高潮点。">
-              <DanmakuScatterChart :data="danmakuTimeline" />
-              <InsightCards :items="dynamicInsightCards" />
-            </ChartPanel>
-
-            <VideoTable v-model:keyword="keyword" :videos="filteredVideos" />
-          </div>
-
-          <div class="stack">
-            <ChartPanel title="评论情感占比" description="快速判断当前评论区口碑结构。">
-              <SentimentPieChart :data="videoSentiments" />
-            </ChartPanel>
-
-            <ChartPanel title="UP主能力雷达" description="对比创作者的播放、热度、口碑和互动能力。">
-              <UpRadarChart :data="upPerformance" />
-            </ChartPanel>
-
-            <RecommendationPanel :items="recommendations" />
-          </div>
-        </section>
-      </template>
-
-      <template v-else-if="activeModule === 'video'">
-        <section class="video-summary-grid">
-          <ChartPanel title="视频情感结构" description="用于判断高播放视频是否同时具备好口碑。">
-            <SentimentPieChart :data="videoSentiments" />
-          </ChartPanel>
-          <section class="analysis-list compact">
-            <article v-for="item in videoCards.slice(0, 4)" :key="item.bvid" class="analysis-card">
-              <div class="analysis-card-head">
-                <strong>{{ item.title }}</strong>
-                <el-tag :type="item.rankNo <= 3 ? 'success' : 'info'">Rank {{ item.rankNo }}</el-tag>
-              </div>
-              <div class="analysis-card-grid">
-                <span>播放量：{{ formatCompact(item.viewCount) }}</span>
-                <span>互动量：{{ formatCompact(item.interactions) }}</span>
-                <span>热度：{{ Math.round(item.heatScore).toLocaleString('zh-CN') }}</span>
-                <span>UP主：{{ item.upName || '--' }}</span>
-              </div>
-            </article>
-          </section>
-        </section>
-        <VideoTable
-          v-model:keyword="keyword"
-          :videos="filteredVideos"
-          title="视频表现分析"
-          description="按热度、互动率和情感表现筛选可复盘视频。"
-        />
-      </template>
-
-      <template v-else-if="activeModule === 'danmaku'">
-        <section class="analysis-grid">
-          <ChartPanel title="弹幕时间轴散点图" description="定位弹幕最密集的片段，辅助找名场面、争议点和剪辑切点。">
-            <template #actions>
-              <el-select v-model="selectedBvid" class="module-select" placeholder="选择视频">
-                <el-option v-for="video in heatRank" :key="video.bvid" :label="video.title" :value="video.bvid" />
-              </el-select>
-            </template>
-            <DanmakuScatterChart :data="danmakuTimeline" />
-          </ChartPanel>
-          <ChartPanel title="弹幕高峰列表" description="把图表中的高峰点转成可检查的时间节点。">
-            <el-table :data="danmakuHotspots" style="width: 100%">
-              <el-table-column prop="timeText" label="时间点" width="100" />
-              <el-table-column prop="danmakuCount" label="弹幕数" width="100" />
-              <el-table-column prop="avgSentimentText" label="情感" width="100" />
-              <el-table-column prop="topWords" label="关键词" min-width="160" />
-            </el-table>
-          </ChartPanel>
-        </section>
-      </template>
-
-      <template v-else-if="activeModule === 'comment'">
-        <section class="analysis-grid">
-          <ChartPanel title="评论情感占比" description="观察正向、中性、负向评论的整体结构。">
-            <SentimentPieChart :data="videoSentiments" />
-          </ChartPanel>
-          <ChartPanel title="情感趋势" description="识别负向情绪是否在某一日期集中上升。">
-            <TrendChart :mode="trendMode" :data="sentimentTrend" />
-          </ChartPanel>
-        </section>
-        <section class="panel video-panel">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">负面评论样本</div>
-              <div class="panel-desc">用于舆情排查、运营回复和内容解释补充。</div>
-            </div>
-          </div>
-          <el-table :data="negativeComments" style="width: 100%">
-            <el-table-column prop="userName" label="用户" width="150" />
-            <el-table-column prop="cleanContent" label="评论内容" min-width="300" />
-            <el-table-column prop="likeCount" label="点赞" width="100" sortable />
-            <el-table-column prop="sentimentScore" label="情感分" width="110" />
-            <el-table-column prop="crawledAt" label="采集时间" width="190" />
-          </el-table>
-        </section>
-      </template>
-
-      <template v-else-if="activeModule === 'creator'">
-        <section class="dashboard-grid">
-          <ChartPanel title="UP主能力雷达图" description="比较创作者在产量、播放、热度、口碑和点赞上的综合能力。">
-            <UpRadarChart :data="upPerformance" />
-          </ChartPanel>
-          <ChartPanel title="UP主表现排行" description="按平均热度排序，找到值得重点复盘的账号。">
-            <el-table :data="upPerformance" style="width: 100%">
-              <el-table-column prop="upName" label="UP主" min-width="160" />
-              <el-table-column prop="videoCount" label="视频数" width="90" />
-              <el-table-column prop="avgViewCount" label="平均播放" width="120" :formatter="numberColumn" />
-              <el-table-column prop="avgHeatScore" label="平均热度" width="120" :formatter="numberColumn" />
-              <el-table-column prop="avgSentiment" label="情感" width="90" />
-            </el-table>
-          </ChartPanel>
-        </section>
-      </template>
-
-      <template v-else>
-        <section class="analysis-list">
-          <article v-for="item in taskCards" :key="item.title" class="analysis-card">
-            <div class="analysis-card-head">
-              <strong>{{ item.title }}</strong>
-              <el-tag :type="item.type">{{ item.level }}</el-tag>
-            </div>
-            <p>{{ item.text }}</p>
-          </article>
-        </section>
-      </template>
+      <router-view />
     </el-main>
   </el-container>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import DashboardHeader from '@/components/layout/DashboardHeader.vue'
 import MetricGrid from '@/components/metrics/MetricGrid.vue'
-import ChartPanel from '@/components/charts/ChartPanel.vue'
-import TrendChart from '@/components/charts/TrendChart.vue'
-import SentimentPieChart from '@/components/charts/SentimentPieChart.vue'
-import UpRadarChart from '@/components/charts/UpRadarChart.vue'
-import DanmakuScatterChart from '@/components/charts/DanmakuScatterChart.vue'
-import InsightCards from '@/components/insights/InsightCards.vue'
-import RecommendationPanel from '@/components/insights/RecommendationPanel.vue'
-import VideoTable from '@/components/video/VideoTable.vue'
 import { navItems, recommendations } from '@/data/dashboard'
 import { exportExcelWorkbook } from '@/utils/exportExcel'
 import {
-  fetchDanmakuTimeline,
-  fetchHeatRank,
-  fetchKeywords,
-  fetchNegativeComments,
-  fetchSentimentTrend,
-  fetchUpPerformance,
-  fetchVideoSentiment,
-} from '@/api/analysis'
-import { formatVideoTime } from '@/utils/chartOptions'
+  useDashboardData,
+  formatCompact,
+  getInteractions,
+  average,
+} from '@/composables/useDashboardData'
 
-const activeModule = ref('overview')
-const trendMode = ref('日')
-const keyword = ref('')
-const loading = ref(false)
-const loadError = ref('')
-const selectedBvid = ref('')
-const heatRank = ref([])
-const videoSentiments = ref([])
-const sentimentTrend = ref([])
-const danmakuTimeline = ref([])
-const keywords = ref([])
-const upPerformance = ref([])
-const negativeComments = ref([])
-const filters = reactive({ channel: 'all', period: '30d' })
+const {
+  activeModule,
+  loading,
+  filters,
+  heatRank,
+  visibleHeatRank,
+  videoSentiments,
+  upPerformance,
+  keywords,
+  negativeComments,
+  sentimentTrend,
+  danmakuHotspots,
+  handleRefresh,
+  handleFiltersChange,
+} = useDashboardData()
+
+const router = useRouter()
+const route = useRoute()
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name && name !== activeModule.value) {
+      activeModule.value = name
+    }
+  },
+  { immediate: true },
+)
+
+function navigate(key) {
+  activeModule.value = key
+  router.push({ name: key })
+}
 
 const moduleCopy = {
   overview: ['B站内容运营数据总览', '聚合视频热度、弹幕、评论情感和UP主表现，快速判断整体增长状态。'],
@@ -279,122 +144,8 @@ const moduleMetrics = computed(() => {
   ]
 })
 
-const mappedVideos = computed(() =>
-  visibleHeatRank.value.map((item) => {
-    const sentiment = videoSentiments.value.find((entry) => entry.bvid === item.bvid)
-    const interactionRate = item.viewCount > 0 ? (item.likeCount + item.favoriteCount) / item.viewCount : 0
-    return {
-      bvid: item.bvid,
-      title: item.title,
-      up: item.upName,
-      category: item.category,
-      views: formatCompact(item.viewCount),
-      interaction: `${(interactionRate * 100).toFixed(1)}%`,
-      sentiment: sentiment ? `${(sentiment.positiveRatio * 100).toFixed(1)}%` : '--',
-      status: item.rankNo <= 2 ? '爆发中' : '观察',
-      statusType: item.rankNo <= 2 ? 'success' : 'warning',
-    }
-  }),
-)
-
-const filteredVideos = computed(() => {
-  const term = keyword.value.trim().toLowerCase()
-  if (!term) return mappedVideos.value
-  return mappedVideos.value.filter((item) =>
-    [item.title, item.up, item.category || ''].some((value) => value.toLowerCase().includes(term)),
-  )
-})
-
-const visibleHeatRank = computed(() => {
-  if (filters.channel === 'all') return heatRank.value
-
-  const matched = heatRank.value.filter((item) => item.category === filters.channel)
-  return matched.length > 0 ? matched : heatRank.value
-})
-
-const videoCards = computed(() => visibleHeatRank.value.map((item) => ({ ...item, interactions: getInteractions(item) })))
-
-const danmakuHotspots = computed(() =>
-  [...danmakuTimeline.value]
-    .sort((a, b) => b.danmakuCount - a.danmakuCount)
-    .slice(0, 8)
-    .map((item) => ({
-      ...item,
-      timeText: formatVideoTime(item.timeBucket),
-      avgSentimentText: `${(item.avgSentiment * 100).toFixed(1)}%`,
-    })),
-)
-
-const dynamicInsightCards = computed(() => [
-  {
-    title: '热度榜首',
-    text: visibleHeatRank.value[0]
-      ? `${visibleHeatRank.value[0].title} 当前热度最高，分数 ${Math.round(visibleHeatRank.value[0].heatScore).toLocaleString('zh-CN')}。`
-      : '暂无热度排行数据。',
-  },
-  {
-    title: '高频关键词',
-    text: keywords.value.length > 0 ? keywords.value.slice(0, 4).map((item) => item.word).join('、') : '暂无关键词数据。',
-  },
-  {
-    title: '弹幕高能段',
-    text:
-      danmakuHotspots.value.length > 0
-        ? `峰值出现在 ${danmakuHotspots.value[0].timeText} 附近，可用于切片复盘。`
-        : '暂无弹幕时间轴数据。',
-  },
-])
-
-const taskCards = computed(() => recommendations)
-
-watch(selectedBvid, async (bvid) => {
-  if (!bvid) return
-  try {
-    danmakuTimeline.value = await fetchDanmakuTimeline(bvid)
-  } catch (error) {
-    loadError.value = error.message || '弹幕数据加载失败'
-    ElMessage.error(loadError.value)
-  }
-})
-
-async function loadDashboardData() {
-  loading.value = true
-  loadError.value = ''
-  try {
-    const [heatRankData, sentimentData, trendData, keywordData, upData] = await Promise.all([
-      fetchHeatRank(10),
-      fetchVideoSentiment(),
-      fetchSentimentTrend(getDateRange(filters.period)),
-      fetchKeywords({ dimensionType: 'global', dimensionValue: 'all', limit: 10 }),
-      fetchUpPerformance(10),
-    ])
-    heatRank.value = heatRankData
-    videoSentiments.value = sentimentData
-    sentimentTrend.value = trendData
-    keywords.value = keywordData
-    upPerformance.value = upData
-    selectedBvid.value = heatRankData[0]?.bvid ?? ''
-    negativeComments.value = selectedBvid.value
-      ? await fetchNegativeComments({ bvid: selectedBvid.value, limit: 20 })
-      : await fetchNegativeComments({ limit: 20 })
-  } catch (error) {
-    loadError.value = error.message || '数据加载失败'
-    ElMessage.error(loadError.value)
-  } finally {
-    loading.value = false
-  }
-}
-
-async function handleRefresh() {
-  await loadDashboardData()
-  if (!loadError.value) {
-    ElMessage.success('数据已刷新')
-  }
-}
-
-async function handleFiltersChange(nextFilters) {
-  Object.assign(filters, nextFilters)
-  await loadDashboardData()
+function metric(label, value, delta, note, status) {
+  return { label, value, delta, note, status }
 }
 
 function handleExportReport() {
@@ -482,53 +233,4 @@ function buildReportSheets(moduleKey) {
   }
   return map[moduleKey] ?? map.overview
 }
-
-function metric(label, value, delta, note, status) {
-  return { label, value, delta, note, status }
-}
-
-function getInteractions(item) {
-  return item.likeCount + item.coinCount + item.favoriteCount + item.replyCount + item.danmakuCount
-}
-
-function average(values) {
-  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length
-}
-
-function getDateRange(period) {
-  const daysMap = {
-    '7d': 7,
-    '30d': 30,
-    '90d': 90,
-  }
-  const days = daysMap[period] ?? 30
-  const end = new Date()
-  const start = new Date()
-  start.setDate(end.getDate() - days + 1)
-
-  return {
-    startDate: formatDate(start),
-    endDate: formatDate(end),
-  }
-}
-
-function formatDate(date) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
-function formatCompact(value) {
-  const number = Number(value) || 0
-  if (number >= 10000) return `${(number / 10000).toFixed(1)}万`
-  return Math.round(number).toLocaleString('zh-CN')
-}
-
-function numberColumn(row, column, value) {
-  return formatCompact(value)
-}
-
-onMounted(loadDashboardData)
 </script>

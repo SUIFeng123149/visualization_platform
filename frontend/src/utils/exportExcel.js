@@ -7,9 +7,19 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;')
 }
 
+// Excel formula injection protection: prefix values starting with =, +, -, @ with a tab
+function sanitizeCell(value) {
+  const str = String(value ?? '')
+  if (/^[=+\-@]/.test(str)) {
+    return '\t' + str
+  }
+  return str
+}
+
 function cell(value) {
   const type = typeof value === 'number' && Number.isFinite(value) ? 'Number' : 'String'
-  return `<Cell><Data ss:Type="${type}">${escapeXml(value)}</Data></Cell>`
+  const safe = type === 'Number' ? escapeXml(value) : escapeXml(sanitizeCell(value))
+  return `<Cell><Data ss:Type="${type}">${safe}</Data></Cell>`
 }
 
 function worksheet(sheet) {

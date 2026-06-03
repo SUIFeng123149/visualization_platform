@@ -43,9 +43,9 @@
         </template>
       </el-table-column>
       <el-table-column label="操作" width="150">
-        <template #default>
-          <el-button link type="primary">查看详情</el-button>
-          <el-button link>复盘</el-button>
+        <template #default="{ row }">
+          <el-button link type="primary" @click="handleViewDetail(row)">查看详情</el-button>
+          <el-button link @click="handleReview(row)">复盘</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -54,8 +54,9 @@
 
 <script setup>
 import { Search } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
-defineProps({
+const props = defineProps({
   videos: {
     type: Array,
     required: true,
@@ -74,5 +75,15 @@ defineProps({
   },
 })
 
-defineEmits(['update:keyword'])
+const emit = defineEmits(['update:keyword', 'view-detail', 'review'])
+
+function handleViewDetail(row) {
+  ElMessage.info(`查看详情: ${row.bvid || row.title}`)
+  emit('view-detail', row)
+}
+
+function handleReview(row) {
+  ElMessage.info(`开始复盘: ${row.bvid || row.title}`)
+  emit('review', row)
+}
 </script>

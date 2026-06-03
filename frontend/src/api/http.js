@@ -24,13 +24,20 @@ export async function request(path, params = {}) {
     if (error.name === 'AbortError') {
       throw new Error('接口请求超时，请稍后重试')
     }
-    throw new Error('接口请求失败，请检查后端服务或网络连接')
+    throw new Error(`网络请求失败: ${error.message || '请检查网络连接'}`)
   } finally {
     window.clearTimeout(timeoutId)
   }
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    let serverMessage = response.statusText
+    try {
+      const errorBody = await response.json()
+      serverMessage = errorBody.message || serverMessage
+    } catch {
+      // ignore parse error
+    }
+    throw new Error(serverMessage || `HTTP ${response.status}`)
   }
 
   const payload = await response.json()
