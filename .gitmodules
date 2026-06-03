@@ -1,3 +1,6 @@
 [submodule "bilibili"]
 	path = bilibili
 	url = https://gitee.com/qinzihang2006/bilibili
+[submodule "bilibili_data_pipeline"]
+	path = bilibili_data_pipeline
+	url = https://gitee.com/chunyu-jushi/bilibili_data_pipeline
