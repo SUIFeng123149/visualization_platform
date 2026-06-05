@@ -62,6 +62,11 @@ public class AnalysisService {
         return analysisRepository.findNegativeComments(bvid, limit);
     }
 
+    @Cacheable(value = "videoHeatRankByCategory", key = "{#category, #limit}")
+    public List<VideoHeatRankDto> getVideosByCategory(String category, int limit) {
+        return analysisRepository.findVideoHeatRankByCategory(category, limit);
+    }
+
     private static Date toSqlDate(LocalDate date) {
         return date == null ? null : Date.valueOf(date);
     }

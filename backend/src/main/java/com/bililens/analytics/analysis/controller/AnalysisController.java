@@ -94,4 +94,13 @@ public class AnalysisController {
     ) {
         return ApiResponse.ok(analysisService.getNegativeComments(bvid, limit));
     }
+
+    @Operation(summary = "Dify视频推荐", description = "供Dify AI助手调用的视频推荐接口，支持按分区推荐，不传分区返回热度排行")
+    @GetMapping("/dify/recommend")
+    public ApiResponse<List<VideoHeatRankDto>> recommendVideos(
+            @Parameter(description = "视频分区（可选，如科技、游戏、音乐等）") @RequestParam(required = false) @Size(max = 64) String category,
+            @Parameter(description = "返回数量，范围 1-100") @RequestParam(defaultValue = "5") @Min(1) @Max(100) int limit
+    ) {
+        return ApiResponse.ok(analysisService.getVideosByCategory(category, limit));
+    }
 }
