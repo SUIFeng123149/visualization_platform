@@ -1,6 +1,11 @@
 [submodule "bilibili"]
 	path = bilibili
-	url = https://gitee.com/qinzihang2006/bilibili
+	url  = https://gitee.com/qinzihang2006/bilibili
+
 [submodule "bilibili_data_pipeline"]
 	path = bilibili_data_pipeline
-	url = https://gitee.com/chunyu-jushi/bilibili_data_pipeline
+	url  = https://gitee.com/chunyu-jushi/bilibili_data_pipeline
+
+[submodule "bilibili_ai_dify"]
+	path = bilibili_ai_dify
+	url  = https://gitee.com/NH3CH2COOH/hrbust-dify-re

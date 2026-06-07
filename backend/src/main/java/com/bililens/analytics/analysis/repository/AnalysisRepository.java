@@ -260,6 +260,38 @@ public class AnalysisRepository {
                 .list();
     }
 
+    /**
+     * Find top videos by category, ordered by heat score.
+     * Used by Dify AI assistant for video recommendation.
+     */
+    public List<VideoHeatRankDto> findVideoHeatRankByCategory(String category, int limit) {
+        return jdbcClient.sql("""
+                select bvid, title, up_name, category, view_count, like_count, coin_count,
+                       favorite_count, reply_count, danmaku_count, heat_score, rank_no
+                from ads_video_heat_rank
+                where (:category is null or category = :category)
+                order by heat_score desc
+                limit :limit
+                """)
+                .param("category", blankToNull(category))
+                .param("limit", limit)
+                .query((rs, rowNum) -> new VideoHeatRankDto(
+                        rs.getString("bvid"),
+                        rs.getString("title"),
+                        rs.getString("up_name"),
+                        rs.getString("category"),
+                        rs.getLong("view_count"),
+                        rs.getLong("like_count"),
+                        rs.getLong("coin_count"),
+                        rs.getLong("favorite_count"),
+                        rs.getLong("reply_count"),
+                        rs.getLong("danmaku_count"),
+                        rs.getDouble("heat_score"),
+                        rs.getInt("rank_no")
+                ))
+                .list();
+    }
+
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
     }
