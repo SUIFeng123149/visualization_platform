@@ -1,20 +1,21 @@
 <template>
   <section class="analysis-grid">
-    <ChartPanel title="评论情感占比" description="观察正向、中性、负向评论的整体结构。">
+    <ChartPanel title="评论情感占比" description="观察正向、中性、负向评论的整体结构；统计口径来自评论情感样本。">
       <SentimentPieChart :data="videoSentiments" />
     </ChartPanel>
-    <ChartPanel title="情感趋势" description="识别负向情绪是否在某一日期集中上升。">
+    <ChartPanel title="情感趋势" description="识别负向情绪是否在某一日期集中上升，右上角日期筛选会影响本图。">
       <TrendChart :mode="trendMode" :data="sentimentTrend" />
     </ChartPanel>
   </section>
+
   <section class="panel video-panel">
     <div class="panel-header">
       <div>
         <div class="panel-title">负面评论样本</div>
-        <div class="panel-desc">用于舆情排查、运营回复和内容解释补充。</div>
+        <div class="panel-desc">用于舆情排查、运营回复和内容解释补充；优先处理高赞负面评论。</div>
       </div>
     </div>
-    <el-table :data="negativeComments" style="width: 100%">
+    <el-table :data="negativeComments" empty-text="暂无负面评论样本" style="width: 100%">
       <el-table-column prop="userName" label="用户" width="150" />
       <el-table-column prop="cleanContent" label="评论内容" min-width="300" />
       <el-table-column prop="likeCount" label="点赞" width="100" sortable />

@@ -19,6 +19,30 @@
     <div class="stack">
       <DataQualityPanel :quality="dataQuality" />
 
+      <article class="panel anomaly-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">异常检测中心</div>
+            <div class="panel-desc">自动识别热度、互动、情感和弹幕中的优先关注对象。</div>
+          </div>
+        </div>
+        <div class="anomaly-list">
+          <article
+            v-for="item in anomalyInsights"
+            :key="item.title"
+            class="anomaly-item"
+            :class="`anomaly-${item.type}`"
+            @click="openAnomaly(item)"
+          >
+            <div>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.text }}</p>
+            </div>
+            <el-tag :type="item.type">{{ item.level }}</el-tag>
+          </article>
+        </div>
+      </article>
+
       <ChartPanel title="评论情感占比" description="快速判断当前评论区口碑结构；没有评论情感样本的视频不会计算正向占比。">
         <SentimentPieChart :data="videoSentiments" />
       </ChartPanel>
@@ -34,6 +58,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import ChartPanel from '@/components/charts/ChartPanel.vue'
 import TrendChart from '@/components/charts/TrendChart.vue'
 import SentimentPieChart from '@/components/charts/SentimentPieChart.vue'
@@ -44,7 +69,9 @@ import RecommendationPanel from '@/components/insights/RecommendationPanel.vue'
 import DataQualityPanel from '@/components/quality/DataQualityPanel.vue'
 import VideoTable from '@/components/video/VideoTable.vue'
 import { recommendations } from '@/data/dashboard'
-import { useDashboardData } from '@/composables/useDashboardData'
+import { formatCompact, getInteractions, useDashboardData } from '@/composables/useDashboardData'
+
+const router = useRouter()
 
 const {
   trendMode,
@@ -60,6 +87,56 @@ const {
   dataQuality,
   globalInsights,
 } = useDashboardData()
+
+const anomalyInsights = computed(() => {
+  const insights = []
+  const topHeat = visibleHeatRank.value[0]
+  const topInteraction = [...visibleHeatRank.value].sort((a, b) => interactionRate(b) - interactionRate(a))[0]
+  const riskySentiment = [...videoSentiments.value].sort((a, b) => b.negativeRatio - a.negativeRatio)[0]
+  const hotspot = danmakuHotspots.value[0]
+
+  if (topHeat) {
+    insights.push({
+      title: '热度异常高',
+      level: '复盘',
+      type: 'warning',
+      text: `${topHeat.title} 当前热度 ${Math.round(topHeat.heatScore).toLocaleString('zh-CN')}，建议拆解传播来源。`,
+      bvid: topHeat.bvid,
+    })
+  }
+
+  if (topInteraction) {
+    insights.push({
+      title: '互动效率突出',
+      level: '增长',
+      type: 'success',
+      text: `${topInteraction.title} 互动率 ${(interactionRate(topInteraction) * 100).toFixed(1)}%，适合沉淀互动机制。`,
+      bvid: topInteraction.bvid,
+    })
+  }
+
+  if (riskySentiment && riskySentiment.negativeRatio >= 0.2) {
+    insights.push({
+      title: '负向情绪预警',
+      level: '风险',
+      type: 'danger',
+      text: `${riskySentiment.title} 负向占比 ${(riskySentiment.negativeRatio * 100).toFixed(1)}%，建议优先查看评论样本。`,
+      bvid: riskySentiment.bvid,
+    })
+  }
+
+  if (hotspot) {
+    insights.push({
+      title: '弹幕峰值片段',
+      level: '切片',
+      type: 'primary',
+      text: `${hotspot.timeText} 附近弹幕 ${formatCompact(hotspot.danmakuCount)} 条，可作为剪辑切点。`,
+      bvid: hotspot.bvid,
+    })
+  }
+
+  return insights.length ? insights : [{ title: '暂无明显异常', level: '正常', type: 'success', text: '当前样本未触发异常规则。' }]
+})
 
 const dynamicInsightCards = computed(() => [
   {
@@ -83,4 +160,13 @@ const dynamicInsightCards = computed(() => [
     bvid: danmakuHotspots.value[0]?.bvid,
   },
 ])
+
+function interactionRate(item) {
+  return item?.viewCount > 0 ? getInteractions(item) / item.viewCount : 0
+}
+
+function openAnomaly(item) {
+  if (!item.bvid) return
+  router.push({ name: 'videoDetail', params: { bvid: item.bvid } })
+}
 </script>

@@ -30,11 +30,11 @@
     </section>
 
     <section v-if="detail" class="detail-grid">
-      <ChartPanel title="视频情感结构" description="判断该视频是否高热度同时具备稳定口碑。">
+      <ChartPanel title="视频情感结构" description="判断该视频是否在高热度的同时具备稳定口碑。">
         <SentimentPieChart :data="detail.sentiment ? [detail.sentiment] : []" />
       </ChartPanel>
 
-      <ChartPanel title="弹幕高能切片" description="自动定位观众反应最集中的片段。">
+      <ChartPanel title="弹幕高能切片" description="自动定位观众反应最集中的片段，辅助制作二创切片。">
         <DanmakuScatterChart :data="detail.danmakuTimeline" />
       </ChartPanel>
     </section>
@@ -92,7 +92,7 @@
       <div class="panel-header">
         <div>
           <div class="panel-title">相似视频对比</div>
-          <div class="panel-desc">按分区、UP 主、热度接近度和口碑样本匹配，用于判断当前视频强弱项。</div>
+          <div class="panel-desc">按分区、UP主、热度接近度和口碑样本匹配，用于判断当前视频强弱项。</div>
         </div>
       </div>
       <el-table :data="similarVideos" empty-text="暂无可对比视频" style="width: 100%">
@@ -159,10 +159,10 @@ const detailMetrics = computed(() => {
   const hotspot = [...detail.value.danmakuTimeline].sort((a, b) => b.danmakuCount - a.danmakuCount)[0]
 
   return [
-    metric('播放量', formatCompact(video.viewCount), `热度 ${Math.round(video.heatScore).toLocaleString('zh-CN')}`, '当前视频', 'up'),
-    metric('互动率', `${(interactionRate * 100).toFixed(1)}%`, formatCompact(getInteractions(video)), '总互动', 'up'),
-    metric('正向占比', sentiment ? `${(sentiment.positiveRatio * 100).toFixed(1)}%` : '--', sentiment ? `${sentiment.totalCount} 条样本` : '无样本', '评论情感', 'up'),
-    metric('弹幕峰值', hotspot ? formatCompact(hotspot.danmakuCount) : '--', hotspot ? formatVideoTime(hotspot.timeBucket) : '无峰值', '高能片段', 'up'),
+    metric('播放量', formatCompact(video.viewCount), `热度 ${Math.round(video.heatScore).toLocaleString('zh-CN')}`, '当前视频', 'up', '播放量来自热度排行表，热度分由后端综合指标计算。'),
+    metric('互动率', `${(interactionRate * 100).toFixed(1)}%`, formatCompact(getInteractions(video)), '总互动', 'up', '互动率 = 点赞/投币/收藏/评论/弹幕合计 ÷ 播放量。'),
+    metric('正向占比', sentiment ? `${(sentiment.positiveRatio * 100).toFixed(1)}%` : '--', sentiment ? `${sentiment.totalCount} 条样本` : '无样本', '评论情感', 'up', '正向占比来自评论情感样本；无样本时不计算。'),
+    metric('弹幕峰值', hotspot ? formatCompact(hotspot.danmakuCount) : '--', hotspot ? formatVideoTime(hotspot.timeBucket) : '无峰值', '高能片段', 'up', '弹幕峰值用于定位观众集中反应片段。'),
   ]
 })
 
@@ -259,8 +259,8 @@ watch(
   { immediate: true },
 )
 
-function metric(label, value, delta, note, status) {
-  return { label, value, delta, note, status }
+function metric(label, value, delta, note, status, description) {
+  return { label, value, delta, note, status, description }
 }
 
 function scoreByRank(rankNo) {

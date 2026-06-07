@@ -81,7 +81,7 @@ const props = defineProps({
   },
   description: {
     type: String,
-    default: '用于承接图表下钻，补齐后台管理的检索、排序和操作能力。',
+    default: '用于承接图表下钻，补齐后台管理所需的检索、排序和操作能力。',
   },
   defaultPageSize: {
     type: Number,
