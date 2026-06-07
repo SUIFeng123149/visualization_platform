@@ -14,7 +14,7 @@
         :show-channel-filter="moduleFilterConfig.showChannel"
         :show-period-filter="moduleFilterConfig.showPeriod"
         @update:filters="handleFiltersChange"
-        @refresh="handleRefresh"
+        @refresh="handleHeaderRefresh"
       />
 
       <div class="export-toolbar">
@@ -44,6 +44,7 @@ import DashboardHeader from '@/components/layout/DashboardHeader.vue'
 import MetricGrid from '@/components/metrics/MetricGrid.vue'
 import { navItems, recommendations } from '@/data/dashboard'
 import { fetchVideoDetail } from '@/api/analysis'
+import { refreshTasks } from '@/api/tasks'
 import { exportExcelWorkbook } from '@/utils/exportExcel'
 import {
   average,
@@ -64,7 +65,7 @@ const {
   negativeComments,
   sentimentTrend,
   danmakuHotspots,
-  handleRefresh,
+  handleRefresh: handleDashboardRefresh,
   handleFiltersChange,
 } = useDashboardData()
 
@@ -85,6 +86,15 @@ watch(
 function navigate(key) {
   activeModule.value = key
   router.push({ name: key })
+}
+
+async function handleHeaderRefresh() {
+  if (activeModule.value === 'task') {
+    window.dispatchEvent(new CustomEvent('bililens:refresh-tasks'))
+    return
+  }
+
+  await handleDashboardRefresh()
 }
 
 const moduleCopy = {
@@ -200,6 +210,10 @@ async function buildReportSheets(moduleKey) {
     return buildVideoDetailSheets(route.params.bvid)
   }
 
+  if (moduleKey === 'task') {
+    return buildTaskSheets()
+  }
+
   const videoRankRows = moduleKey === 'video' ? heatRank.value : visibleHeatRank.value
   const videoBvids = new Set(videoRankRows.map((item) => item.bvid))
   const videoSentimentRows = ['overview', 'video'].includes(moduleKey)
@@ -262,11 +276,6 @@ async function buildReportSheets(moduleKey) {
       ].map(([key, label]) => ({ key, label })),
       rows: negativeComments.value,
     },
-    task: {
-      name: '运营动作建议',
-      columns: [['title', '建议'], ['level', '优先级'], ['text', '说明']].map(([key, label]) => ({ key, label })),
-      rows: recommendations,
-    },
   }
 
   const map = {
@@ -275,9 +284,23 @@ async function buildReportSheets(moduleKey) {
     danmaku: [sheets.danmaku],
     comment: [sheets.videoSentiment, sheets.trend, sheets.negative],
     creator: [sheets.creator],
-    task: [sheets.task],
   }
   return map[moduleKey] ?? map.overview
+}
+
+async function buildTaskSheets() {
+  const tasks = await refreshTasks()
+  return [
+    {
+      name: '运营任务',
+      columns: [
+        ['taskId', '任务ID'], ['title', '任务'], ['level', '优先级'], ['type', '类型'],
+        ['status', '状态'], ['text', '说明'], ['bvid', '关联视频'], ['source', '来源'],
+        ['sortNo', '排序'], ['statusUpdatedAt', '状态更新时间'], ['updatedAt', '任务更新时间'],
+      ].map(([key, label]) => ({ key, label })),
+      rows: tasks,
+    },
+  ]
 }
 
 async function buildVideoDetailSheets(bvid) {

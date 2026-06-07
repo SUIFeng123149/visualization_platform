@@ -13,6 +13,8 @@ DROP TABLE IF EXISTS ads_danmaku_timeline;
 DROP TABLE IF EXISTS ads_sentiment_by_date;
 DROP TABLE IF EXISTS ads_video_sentiment;
 DROP TABLE IF EXISTS ads_video_heat_rank;
+DROP TABLE IF EXISTS ops_task_status;
+DROP TABLE IF EXISTS ops_task;
 
 CREATE TABLE dwd_comment_clean (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -137,4 +139,30 @@ CREATE TABLE ads_up_performance (
   avg_heat_score DOUBLE,
   avg_sentiment DOUBLE,
   total_like_count BIGINT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ops_task_status (
+  task_id VARCHAR(255) PRIMARY KEY,
+  status VARCHAR(32) NOT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  INDEX idx_updated_at (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ops_task (
+  task_id VARCHAR(255) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  level VARCHAR(32) NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  text TEXT NOT NULL,
+  bvid VARCHAR(32),
+  source VARCHAR(64) NOT NULL DEFAULT 'system',
+  sort_no INT NOT NULL DEFAULT 100,
+  is_active TINYINT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_active_sort (is_active, sort_no),
+  INDEX idx_bvid (bvid),
+  INDEX idx_source (source)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

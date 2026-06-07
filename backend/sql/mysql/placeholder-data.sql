@@ -39,3 +39,11 @@ INSERT INTO dws_text_analysis_detail
 (source_type, source_id, bvid, clean_content, tokens, keywords, sentiment_score, sentiment_label, model_version, created_at)
 VALUES
 ('comment', 'RP_PLACEHOLDER_001', 'BV_PLACEHOLDER_001', 'TODO_CLEAN_COMMENT', 'TODO_TOKEN', 'TODO_KEYWORD', 0.0, 'negative', 'TODO_MODEL_VERSION', '2026-01-01 00:00:00');
+
+INSERT INTO ops_task
+(task_id, title, level, type, text, bvid, source, sort_no, is_active)
+VALUES
+('review-top-video', '优先复盘热度榜首', '高优先级', 'warning', '进入当前热度榜首视频复盘页，拆解互动、弹幕和评论结构，沉淀可复用的选题与标题方法。', 'BV_PLACEHOLDER_001', 'seed', 10, 1),
+('handle-negative-comments', '处理负面评论风险', '风险', 'danger', '优先查看高赞负面评论，补充置顶解释、评论区回复或二次剪辑说明，降低舆情扩散。', 'BV_PLACEHOLDER_001', 'seed', 20, 1),
+('clip-danmaku-hotspot', '制作弹幕高能切片', '可执行', 'primary', '根据弹幕时间轴峰值回看前后 15 秒，制作短切片或复盘该段内容设计。', 'BV_PLACEHOLDER_001', 'seed', 30, 1),
+('build-creator-sample', '沉淀高表现 UP 样本', '增长', 'success', '将高热度、高互动率、正向情感较好的视频归入样本池，用于后续选题和合作判断。', NULL, 'seed', 40, 1);

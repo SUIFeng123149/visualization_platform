@@ -2,7 +2,7 @@
   <section class="task-board">
     <article
       v-for="item in taskCards"
-      :key="item.id"
+      :key="item.taskId"
       class="analysis-card task-card"
       :class="`task-card-${item.status}`"
     >
@@ -19,23 +19,27 @@
           :model-value="item.status"
           :options="statusOptions"
           size="small"
-          @update:model-value="updateTaskStatus(item.id, $event)"
+          @update:model-value="updateStatus(item.taskId, $event)"
         />
         <el-button v-if="item.bvid" link type="primary" @click="openVideo(item.bvid)">查看复盘</el-button>
       </div>
     </article>
+
+    <section v-if="!loading && taskCards.length === 0" class="empty-state">
+      暂无运营任务，请先向 ops_task 表写入任务。
+    </section>
   </section>
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { recommendations } from '@/data/dashboard'
-import { useDashboardData } from '@/composables/useDashboardData'
+import { ElMessage } from 'element-plus'
+import { fetchTasks, refreshTasks, updateTaskStatus } from '@/api/tasks'
 
 const router = useRouter()
-const { globalInsights } = useDashboardData()
-const taskStatus = reactive({})
+const loading = ref(false)
+const taskCards = ref([])
 const statusOptions = [
   { label: '待处理', value: 'todo' },
   { label: '处理中', value: 'doing' },
@@ -43,20 +47,46 @@ const statusOptions = [
   { label: '已忽略', value: 'ignored' },
 ]
 
-const taskCards = computed(() => {
-  const source = globalInsights.value.length ? globalInsights.value : recommendations
-  return source.map((item, index) => {
-    const id = `${item.title}-${item.bvid ?? index}`
-    return {
-      ...item,
-      id,
-      status: taskStatus[id] ?? 'todo',
-    }
-  })
+onMounted(() => {
+  loadTasks()
+  window.addEventListener('bililens:refresh-tasks', loadTasks)
 })
 
-function updateTaskStatus(id, status) {
-  taskStatus[id] = status
+onBeforeUnmount(() => {
+  window.removeEventListener('bililens:refresh-tasks', loadTasks)
+})
+
+async function loadTasks() {
+  loading.value = true
+  try {
+    taskCards.value = await refreshTasks()
+  } catch (error) {
+    ElMessage.warning(error.message || '任务自动生成失败，正在读取已有任务')
+    try {
+      taskCards.value = await fetchTasks()
+    } catch (fallbackError) {
+      ElMessage.error(fallbackError.message || '任务列表加载失败')
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+async function updateStatus(taskId, status) {
+  const task = taskCards.value.find((item) => item.taskId === taskId)
+  if (!task) return
+
+  const previousStatus = task.status
+  task.status = status
+  try {
+    const saved = await updateTaskStatus(taskId, status)
+    task.status = saved.status
+    task.statusUpdatedAt = saved.updatedAt
+    ElMessage.success('任务状态已保存')
+  } catch (error) {
+    task.status = previousStatus
+    ElMessage.error(error.message || '任务状态保存失败')
+  }
 }
 
 function openVideo(bvid) {

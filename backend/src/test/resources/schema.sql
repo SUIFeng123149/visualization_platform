@@ -7,6 +7,8 @@ drop table if exists ads_danmaku_timeline;
 drop table if exists ads_sentiment_by_date;
 drop table if exists ads_video_sentiment;
 drop table if exists ads_video_heat_rank;
+drop table if exists ops_task_status;
+drop table if exists ops_task;
 
 create table ads_video_heat_rank (
     bvid varchar(32) primary key,
@@ -121,4 +123,25 @@ create table dws_text_analysis_detail (
     sentiment_label varchar(16),
     model_version varchar(64),
     created_at timestamp
+);
+
+create table ops_task_status (
+    task_id varchar(255) primary key,
+    status varchar(32) not null,
+    updated_at timestamp default current_timestamp,
+    created_at timestamp default current_timestamp
+);
+
+create table ops_task (
+    task_id varchar(255) primary key,
+    title varchar(255) not null,
+    level varchar(32) not null,
+    type varchar(32) not null,
+    text clob not null,
+    bvid varchar(32),
+    source varchar(64) default 'system' not null,
+    sort_no int default 100 not null,
+    is_active smallint default 1 not null,
+    created_at timestamp default current_timestamp,
+    updated_at timestamp default current_timestamp
 );
