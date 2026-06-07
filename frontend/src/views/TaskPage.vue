@@ -14,6 +14,12 @@
         <el-tag :type="item.type">{{ item.level }}</el-tag>
       </div>
 
+      <div class="task-meta">
+        <span>来源：{{ sourceLabel(item.source) }}</span>
+        <span v-if="item.updatedAt">任务更新：{{ formatDateTime(item.updatedAt) }}</span>
+        <span v-if="item.statusUpdatedAt">状态更新：{{ formatDateTime(item.statusUpdatedAt) }}</span>
+      </div>
+
       <div class="task-card-footer">
         <el-segmented
           :model-value="item.status"
@@ -26,7 +32,7 @@
     </article>
 
     <section v-if="!loading && taskCards.length === 0" class="empty-state">
-      暂无运营任务，请先向 ops_task 表写入任务。
+      暂无运营任务。点击右上角“刷新数据”后，系统会基于热度、情感、弹幕和UP主表现自动生成任务。
     </section>
   </section>
 </template>
@@ -91,5 +97,14 @@ async function updateStatus(taskId, status) {
 
 function openVideo(bvid) {
   router.push({ name: 'videoDetail', params: { bvid } })
+}
+
+function sourceLabel(source) {
+  return source === 'auto' ? '系统自动生成' : '人工录入'
+}
+
+function formatDateTime(value) {
+  if (!value) return '--'
+  return String(value).replace('T', ' ').slice(0, 19)
 }
 </script>

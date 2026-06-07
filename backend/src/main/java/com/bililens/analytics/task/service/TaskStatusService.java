@@ -60,7 +60,7 @@ public class TaskStatusService {
                 "优先复盘热度榜首",
                 "高优先级",
                 "warning",
-                video.title() + " 当前位于热度榜首，建议进入复盘页拆解互动、弹幕和评论结构，沉淀可复用的选题方法。",
+                "触发规则：热度榜排名第 1。" + video.title() + " 当前位于热度榜首，建议进入复盘页拆解互动、弹幕和评论结构，沉淀可复用的选题方法。",
                 video.bvid(),
                 10
         )));
@@ -73,7 +73,7 @@ public class TaskStatusService {
                         "处理负面评论风险",
                         "风险",
                         "danger",
-                        video.title() + " 负向占比 " + formatPercent(video.negativeRatio()) + "，需要优先查看高赞负面评论并补充运营回应。",
+                        "触发规则：负向占比 >= 25%。" + video.title() + " 负向占比 " + formatPercent(video.negativeRatio()) + "，需要优先查看高赞负面评论并补充运营回应。",
                         video.bvid(),
                         20
                 )));
@@ -85,17 +85,17 @@ public class TaskStatusService {
                         "制作弹幕高能切片",
                         "可执行",
                         "primary",
-                        hotspot.title() + " 在 " + formatVideoTime(hotspot.timeBucket()) + " 附近出现弹幕峰值，建议回看前后 15 秒制作切片。",
+                        "触发规则：弹幕时间轴峰值最高。" + hotspot.title() + " 在 " + formatVideoTime(hotspot.timeBucket()) + " 附近出现弹幕峰值，建议回看前后 15 秒制作切片。",
                         hotspot.bvid(),
                         30
                 )));
 
         upPerformance.stream().findFirst().ifPresent(up -> tasks.add(task(
                 "auto-up-sample-" + sanitizeTaskId(up.upName()),
-                "沉淀高表现 UP 样本",
+                "沉淀高表现UP主样本",
                 "增长",
                 "success",
-                up.upName() + " 平均热度最高，可作为选题、标题和合作判断的样本池。",
+                "触发规则：UP主平均热度排名第 1。" + up.upName() + " 平均热度最高，可作为选题、标题和合作判断的样本池。",
                 null,
                 40
         )));
@@ -108,7 +108,7 @@ public class TaskStatusService {
                         "沉淀高口碑视频样本",
                         "增长",
                         "success",
-                        video.title() + " 正向占比 " + formatPercent(video.positiveRatio()) + "，建议提炼评论区认可点用于后续选题复用。",
+                        "触发规则：评论样本数 > 0 且正向占比 >= 60%。" + video.title() + " 正向占比 " + formatPercent(video.positiveRatio()) + "，建议提炼评论区认可点用于后续选题复用。",
                         video.bvid(),
                         50
                 )));
