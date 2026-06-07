@@ -22,7 +22,13 @@
           <strong>{{ exportMeta.title }}</strong>
           <span>{{ exportMeta.description }}</span>
         </div>
-        <el-button class="export-button" type="success" :icon="Download" @click="handleExportReport">
+        <el-button
+          class="export-button"
+          type="success"
+          :icon="Download"
+          :disabled="activeModule === 'aiAssistant'"
+          @click="handleExportReport"
+        >
           {{ exportMeta.buttonText }}
         </el-button>
       </div>
@@ -85,6 +91,7 @@ const moduleCopy = {
   dataSource: ['数据监控', '监控各层数据表的数据量、更新时间和可访问状态，保证图表可信。'],
   reportCenter: ['报表中心', '沉淀报表生成历史，统一管理导出记录和后续下载链路。'],
   anomalyRule: ['规则管理', '配置异常检测阈值，为热度、情感、互动和弹幕预警提供规则基础。'],
+  aiAssistant: ['AI助手', '接入 Dify 应用，辅助解释指标、生成复盘建议和排查数据问题。'],
 }
 
 const exportCopy = {
@@ -98,6 +105,7 @@ const exportCopy = {
   dataSource: ['数据监控报表', '导出数据源状态、数据量和同步健康情况。', '导出监控报表'],
   reportCenter: ['报表历史报表', '导出当前报表中心记录。', '导出报表历史'],
   anomalyRule: ['异常规则报表', '导出当前异常检测规则配置。', '导出规则配置'],
+  aiAssistant: ['AI助手对话', 'AI 对话内容暂不纳入 Excel 导出。', '无需导出'],
 }
 
 const metricDefinitions = [
@@ -155,6 +163,7 @@ const moduleFilterConfig = computed(() => {
     dataSource: { showChannel: false, showPeriod: false },
     reportCenter: { showChannel: false, showPeriod: false },
     anomalyRule: { showChannel: false, showPeriod: false },
+    aiAssistant: { showChannel: false, showPeriod: false },
   }
   return config[activeModule.value] ?? config.overview
 })
@@ -197,7 +206,7 @@ const moduleMetrics = computed(() => {
     ]
   }
 
-  if (['dataSource', 'reportCenter', 'anomalyRule'].includes(activeModule.value)) {
+  if (['dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
     return []
   }
 
@@ -256,6 +265,10 @@ async function buildReportSheets(moduleKey) {
 
   if (moduleKey === 'anomalyRule') {
     return withReportContext(await buildAnomalyRuleSheets(), moduleKey)
+  }
+
+  if (moduleKey === 'aiAssistant') {
+    return []
   }
 
   const videoRankRows = moduleKey === 'video' ? heatRank.value : visibleHeatRank.value

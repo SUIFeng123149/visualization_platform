@@ -55,6 +55,11 @@ const routes = [
     name: 'anomalyRule',
     component: () => import('@/views/AnomalyRulePage.vue'),
   },
+  {
+    path: '/ai-assistant',
+    name: 'aiAssistant',
+    component: () => import('@/views/AiAssistantPage.vue'),
+  },
 ]
 
 const router = createRouter({

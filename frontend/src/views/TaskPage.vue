@@ -1,46 +1,58 @@
 <template>
-  <section class="task-board">
-    <article
-      v-for="item in taskCards"
-      :key="item.taskId"
-      class="analysis-card task-card"
-      :class="`task-card-${item.status}`"
-    >
-      <div class="analysis-card-head">
-        <div>
-          <strong>{{ item.title }}</strong>
-          <p>{{ item.text }}</p>
+  <section class="stack">
+    <AiInsightPanel
+      title="AI异常诊断助手"
+      description="结合当前自动生成任务，解释异常来源、优先级和后续处理动作。"
+      mode="anomaly-diagnosis"
+      :context="taskAiContext"
+      :prompts="taskPrompts"
+      placeholder="例如：这些任务应该先处理哪一个？"
+    />
+
+    <section class="task-board">
+      <article
+        v-for="item in taskCards"
+        :key="item.taskId"
+        class="analysis-card task-card"
+        :class="`task-card-${item.status}`"
+      >
+        <div class="analysis-card-head">
+          <div>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.text }}</p>
+          </div>
+          <el-tag :type="item.type">{{ item.level }}</el-tag>
         </div>
-        <el-tag :type="item.type">{{ item.level }}</el-tag>
-      </div>
 
-      <div class="task-meta">
-        <span>来源：{{ sourceLabel(item.source) }}</span>
-        <span v-if="item.updatedAt">任务更新：{{ formatDateTime(item.updatedAt) }}</span>
-        <span v-if="item.statusUpdatedAt">状态更新：{{ formatDateTime(item.statusUpdatedAt) }}</span>
-      </div>
+        <div class="task-meta">
+          <span>来源：{{ sourceLabel(item.source) }}</span>
+          <span v-if="item.updatedAt">任务更新：{{ formatDateTime(item.updatedAt) }}</span>
+          <span v-if="item.statusUpdatedAt">状态更新：{{ formatDateTime(item.statusUpdatedAt) }}</span>
+        </div>
 
-      <div class="task-card-footer">
-        <el-segmented
-          :model-value="item.status"
-          :options="statusOptions"
-          size="small"
-          @update:model-value="updateStatus(item.taskId, $event)"
-        />
-        <el-button v-if="item.bvid" link type="primary" @click="openVideo(item.bvid)">查看复盘</el-button>
-      </div>
-    </article>
+        <div class="task-card-footer">
+          <el-segmented
+            :model-value="item.status"
+            :options="statusOptions"
+            size="small"
+            @update:model-value="updateStatus(item.taskId, $event)"
+          />
+          <el-button v-if="item.bvid" link type="primary" @click="openVideo(item.bvid)">查看复盘</el-button>
+        </div>
+      </article>
 
-    <section v-if="!loading && taskCards.length === 0" class="empty-state">
-      暂无运营任务。点击右上角“刷新数据”后，系统会基于热度、情感、弹幕和UP主表现自动生成任务。
+      <section v-if="!loading && taskCards.length === 0" class="empty-state">
+        暂无运营任务。点击右上角“刷新数据”后，系统会基于热度、情感、弹幕和UP主表现自动生成任务。
+      </section>
     </section>
   </section>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AiInsightPanel from '@/components/ai/AiInsightPanel.vue'
 import { fetchTasks, refreshTasks, updateTaskStatus } from '@/api/tasks'
 
 const router = useRouter()
@@ -51,6 +63,22 @@ const statusOptions = [
   { label: '处理中', value: 'doing' },
   { label: '已完成', value: 'done' },
   { label: '已忽略', value: 'ignored' },
+]
+
+const taskAiContext = computed(() => ({
+  page: '任务中心',
+  totalTasks: taskCards.value.length,
+  statusSummary: countBy(taskCards.value, 'status'),
+  levelSummary: countBy(taskCards.value, 'level'),
+  typeSummary: countBy(taskCards.value, 'type'),
+  tasks: taskCards.value.slice(0, 12),
+}))
+
+const taskPrompts = [
+  '诊断当前任务中心的主要异常',
+  '给这些任务排一个处理优先级',
+  '哪些任务需要进入视频复盘',
+  '把任务整理成今日运营动作清单',
 ]
 
 onMounted(() => {
@@ -106,5 +134,13 @@ function sourceLabel(source) {
 function formatDateTime(value) {
   if (!value) return '--'
   return String(value).replace('T', ' ').slice(0, 19)
+}
+
+function countBy(rows, key) {
+  return rows.reduce((result, row) => {
+    const value = row[key] || 'unknown'
+    result[value] = (result[value] || 0) + 1
+    return result
+  }, {})
 }
 </script>

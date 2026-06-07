@@ -29,6 +29,16 @@
       </div>
     </section>
 
+    <AiInsightPanel
+      v-if="detail"
+      title="AI生成视频复盘"
+      description="基于当前视频指标、情感、弹幕、关键词、负面评论和相似视频，生成可直接使用的复盘结论。"
+      mode="video-review"
+      :context="videoAiContext"
+      :prompts="videoAiPrompts"
+      placeholder="例如：这个视频的主要短板是什么？"
+    />
+
     <section v-if="detail" class="detail-grid">
       <ChartPanel title="视频情感结构" description="判断该视频是否在高热度的同时具备稳定口碑。">
         <SentimentPieChart :data="detail.sentiment ? [detail.sentiment] : []" />
@@ -142,6 +152,7 @@ import ChartPanel from '@/components/charts/ChartPanel.vue'
 import DanmakuScatterChart from '@/components/charts/DanmakuScatterChart.vue'
 import SentimentPieChart from '@/components/charts/SentimentPieChart.vue'
 import MetricGrid from '@/components/metrics/MetricGrid.vue'
+import AiInsightPanel from '@/components/ai/AiInsightPanel.vue'
 import { fetchVideoDetail } from '@/api/analysis'
 import { formatCompact, getInteractions, getVideoCategory, useDashboardData } from '@/composables/useDashboardData'
 
@@ -241,6 +252,27 @@ const keywordStats = computed(() => {
     rest: enriched.slice(5),
   }
 })
+
+const videoAiContext = computed(() => ({
+  page: '视频详情/复盘',
+  video: detail.value?.video,
+  sentiment: detail.value?.sentiment,
+  reviewScore: reviewScore.value,
+  keywords: detail.value?.keywords?.slice(0, 12) ?? [],
+  danmakuHotspots: [...(detail.value?.danmakuTimeline ?? [])]
+    .sort((a, b) => b.danmakuCount - a.danmakuCount)
+    .slice(0, 6),
+  negativeComments: detail.value?.negativeComments?.slice(0, 8) ?? [],
+  ruleInsights: detail.value?.insights ?? [],
+  similarVideos: similarVideos.value.slice(0, 5),
+}))
+
+const videoAiPrompts = [
+  '生成一份视频复盘报告',
+  '这个视频的爆点和短板是什么',
+  '负面评论需要怎么处理',
+  '给出下一条视频的选题优化建议',
+]
 
 watch(
   () => route.params.bvid,

@@ -11,6 +11,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -355,7 +361,7 @@ public class AnalysisRepository {
                         rs.getString("user_name"),
                         rs.getString("clean_content"),
                         rs.getLong("like_count"),
-                        rs.getTimestamp("crawled_at").toLocalDateTime(),
+                        readLocalDateTime(rs, "crawled_at"),
                         rs.getDouble("sentiment_score")
                 ))
                 .list();
@@ -391,6 +397,26 @@ public class AnalysisRepository {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private static LocalDateTime readLocalDateTime(ResultSet rs, String column) throws SQLException {
+        String raw = rs.getString(column);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            Timestamp timestamp = rs.getTimestamp(column);
+            if (timestamp != null) {
+                return timestamp.toLocalDateTime();
+            }
+        } catch (SQLException ignored) {
+            // Imported CSV/JSONL samples may use ISO-8601 text, for example 2026-06-02T11:16:29+00:00.
+        }
+        try {
+            return OffsetDateTime.parse(raw, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toLocalDateTime();
+        } catch (RuntimeException ignored) {
+            return LocalDateTime.parse(raw.replace(" ", "T"));
+        }
     }
 
     private static VideoHeatRankDto historicalVideoSample(String bvid, long sampleCount, int rankNo) {

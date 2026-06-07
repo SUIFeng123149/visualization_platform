@@ -8,6 +8,7 @@ export const navItems = [
   { key: 'dataSource', label: '数据监控', icon: 'Monitor' },
   { key: 'reportCenter', label: '报表中心', icon: 'Document' },
   { key: 'anomalyRule', label: '规则管理', icon: 'Setting' },
+  { key: 'aiAssistant', label: 'AI助手', icon: 'ChatLineRound' },
 ]
 
 export const recommendations = [

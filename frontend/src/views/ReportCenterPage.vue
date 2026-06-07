@@ -6,6 +6,15 @@
     </article>
   </section>
 
+  <AiInsightPanel
+    title="AI生成报表摘要"
+    description="读取报表历史和生成情况，自动整理日报/周报摘要、数据覆盖范围和风险提示。"
+    mode="report-summary"
+    :context="reportAiContext"
+    :prompts="reportPrompts"
+    placeholder="例如：帮我生成一段今日报表摘要"
+  />
+
   <section class="panel video-panel">
     <div class="panel-header">
       <div>
@@ -41,6 +50,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import AiInsightPanel from '@/components/ai/AiInsightPanel.vue'
 import { createReportHistory, fetchReportHistory } from '@/api/platform'
 
 const loading = ref(false)
@@ -58,6 +68,24 @@ const summaryCards = computed(() => {
     { label: '最近生成', value: latest },
   ]
 })
+
+const reportAiContext = computed(() => ({
+  page: '报表中心',
+  summary: summaryCards.value,
+  reports: reports.value.slice(0, 20),
+  statusSummary: reports.value.reduce((result, item) => {
+    const status = item.status || 'unknown'
+    result[status] = (result[status] || 0) + 1
+    return result
+  }, {}),
+}))
+
+const reportPrompts = [
+  '生成当前报表中心摘要',
+  '哪些报表记录需要关注',
+  '把报表历史整理成日报口径',
+  '给出报表中心下一步建设建议',
+]
 
 onMounted(loadReports)
 

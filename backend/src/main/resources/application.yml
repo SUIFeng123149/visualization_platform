@@ -47,3 +47,7 @@ logging:
 analytics:
   cache:
     refresh-interval-minutes: 5
+  dify:
+    base-url: ${DIFY_BASE_URL:}
+    api-key: ${DIFY_API_KEY:}
+    user: ${DIFY_USER:bililens-user}
