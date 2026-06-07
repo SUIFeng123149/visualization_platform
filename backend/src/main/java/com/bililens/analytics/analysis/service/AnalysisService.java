@@ -35,6 +35,11 @@ public class AnalysisService {
         return analysisRepository.findVideoHeatRank(limit);
     }
 
+    @Cacheable(value = "historicalVideoSamples", key = "#limit")
+    public List<VideoHeatRankDto> getHistoricalVideoSamples(int limit) {
+        return analysisRepository.findHistoricalVideoSamples(limit);
+    }
+
     @Cacheable(value = "videoSentiments", key = "#limit")
     public List<VideoSentimentDto> getVideoSentiments(int limit) {
         return analysisRepository.findVideoSentiments(limit);
@@ -42,7 +47,16 @@ public class AnalysisService {
 
     @Cacheable(value = "videoSentimentsByBvids", key = "#bvids")
     public List<VideoSentimentDto> getVideoSentimentsByBvids(List<String> bvids) {
-        return analysisRepository.findVideoSentimentsByBvids(bvids);
+        List<VideoSentimentDto> sentiments = new ArrayList<>(analysisRepository.findVideoSentimentsByBvids(bvids));
+        java.util.Set<String> matchedBvids = sentiments.stream()
+                .map(VideoSentimentDto::bvid)
+                .collect(java.util.stream.Collectors.toSet());
+        for (String bvid : bvids) {
+            if (!matchedBvids.contains(bvid)) {
+                analysisRepository.findHistoricalVideoSentimentByBvid(bvid).ifPresent(sentiments::add);
+            }
+        }
+        return sentiments;
     }
 
     @Cacheable(value = "sentimentTrend", key = "{#startDate, #endDate}")
@@ -84,17 +98,62 @@ public class AnalysisService {
     @Cacheable(value = "videoDetail", key = "#bvid")
     public VideoDetailDto getVideoDetail(String bvid) {
         VideoHeatRankDto video = analysisRepository.findVideoHeatRankByBvid(bvid)
-                .orElseThrow(() -> new IllegalArgumentException("video not found: " + bvid));
-        VideoSentimentDto sentiment = analysisRepository.findVideoSentimentByBvid(bvid).orElse(null);
+                .orElseGet(() -> analysisRepository.findHistoricalVideoSampleByBvid(bvid)
+                        .orElseThrow(() -> new IllegalArgumentException("video not found: " + bvid)));
+        VideoSentimentDto sentiment = analysisRepository.findVideoSentimentByBvid(bvid)
+                .orElseGet(() -> analysisRepository.findHistoricalVideoSentimentByBvid(bvid).orElse(null));
         List<DanmakuTimelineDto> timeline = analysisRepository.findDanmakuTimeline(bvid);
         List<KeywordTopDto> keywords = analysisRepository.findKeywords("bvid", bvid, 12);
         if (keywords.isEmpty()) {
             keywords = buildKeywordsFromTimeline(timeline, 12);
         }
+        if (keywords.isEmpty()) {
+            keywords = analysisRepository.findKeywordsFromTextAnalysis(bvid, 12);
+        }
         List<NegativeCommentDto> negativeComments = analysisRepository.findNegativeComments(bvid, 10);
-        List<ActionInsightDto> insights = buildVideoInsights(video, sentiment, timeline, keywords, negativeComments);
+        List<ActionInsightDto> insights = video.viewCount() == 0
+                ? buildHistoricalVideoInsights(video, sentiment, keywords)
+                : buildVideoInsights(video, sentiment, timeline, keywords, negativeComments);
 
         return new VideoDetailDto(video, sentiment, timeline, keywords, negativeComments, insights);
+    }
+
+    private static List<ActionInsightDto> buildHistoricalVideoInsights(
+            VideoHeatRankDto video,
+            VideoSentimentDto sentiment,
+            List<KeywordTopDto> keywords
+    ) {
+        List<ActionInsightDto> insights = new ArrayList<>();
+        insights.add(new ActionInsightDto(
+                "历史样本提示",
+                "分析",
+                "info",
+                video.bvid() + " 只存在于文本分析明细中，不在当前热度榜快照里，因此播放、互动和弹幕指标显示为 0。",
+                "如果需要完整播放和弹幕数据，需要重新导入该视频的 videos/comments/danmaku 原始数据并重跑 ADS 汇总。"
+        ));
+
+        if (sentiment != null) {
+            insights.add(new ActionInsightDto(
+                    "评论情感可用",
+                    sentiment.negativeRatio() >= 0.2 ? "风险" : "观察",
+                    sentiment.negativeRatio() >= 0.2 ? "warning" : "success",
+                    "当前历史样本包含 " + sentiment.totalCount() + " 条评论情感分析，正向占比 "
+                            + String.format("%.1f%%", sentiment.positiveRatio() * 100)
+                            + "，负向占比 " + String.format("%.1f%%", sentiment.negativeRatio() * 100) + "。",
+                    "可先基于评论口碑做内容复盘；如需趋势和热度对比，需要补齐 ADS 表。"
+            ));
+        }
+
+        if (!keywords.isEmpty()) {
+            insights.add(new ActionInsightDto(
+                    "关键词可归因",
+                    "分析",
+                    "primary",
+                    "高频词集中在 " + keywords.stream().limit(5).map(KeywordTopDto::word).reduce((a, b) -> a + "、" + b).orElse("--") + "。",
+                    "这些关键词可用于判断该历史样本的讨论主题，例如角色、安魂曲、抽卡或地图彩蛋。"
+            ));
+        }
+        return insights;
     }
 
     private static List<ActionInsightDto> buildVideoInsights(

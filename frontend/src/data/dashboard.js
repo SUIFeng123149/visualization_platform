@@ -5,6 +5,9 @@ export const navItems = [
   { key: 'comment', label: '评论洞察', icon: 'ChatDotRound' },
   { key: 'creator', label: 'UP主画像', icon: 'User' },
   { key: 'task', label: '任务中心', icon: 'Tickets' },
+  { key: 'dataSource', label: '数据监控', icon: 'Monitor' },
+  { key: 'reportCenter', label: '报表中心', icon: 'Document' },
+  { key: 'anomalyRule', label: '规则管理', icon: 'Setting' },
 ]
 
 export const recommendations = [

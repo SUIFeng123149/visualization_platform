@@ -47,6 +47,13 @@ public class AnalysisController {
         return ApiResponse.ok(analysisService.getVideoHeatRank(limit));
     }
 
+    @GetMapping("/videos/historical-samples")
+    public ApiResponse<List<VideoHeatRankDto>> getHistoricalVideoSamples(
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit
+    ) {
+        return ApiResponse.ok(analysisService.getHistoricalVideoSamples(limit));
+    }
+
     @GetMapping("/videos/sentiment")
     public ApiResponse<List<VideoSentimentDto>> getVideoSentiments(
             @RequestParam(defaultValue = "100") @Min(1) @Max(500) int limit

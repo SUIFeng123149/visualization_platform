@@ -4,6 +4,10 @@ export function fetchHeatRank(limit = 10) {
   return request('/api/analysis/videos/heat-rank', { limit })
 }
 
+export function fetchHistoricalVideoSamples(limit = 20) {
+  return request('/api/analysis/videos/historical-samples', { limit })
+}
+
 export function fetchVideoSentiment(limit = 100) {
   return request('/api/analysis/videos/sentiment', { limit })
 }

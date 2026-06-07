@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import {
   fetchDanmakuTimeline,
   fetchHeatRank,
+  fetchHistoricalVideoSamples,
   fetchKeywords,
   fetchNegativeComments,
   fetchSentimentTrend,
@@ -162,21 +163,23 @@ async function loadDashboardData() {
   loading.value = true
   loadingPromise = (async () => {
     try {
-      const [heatRankData, trendData, keywordData, upData] = await Promise.all([
+      const [heatRankData, historicalSampleData, trendData, keywordData, upData] = await Promise.all([
         fetchHeatRank(HEAT_RANK_POOL_LIMIT),
+        fetchHistoricalVideoSamples(30),
         fetchSentimentTrend(getDateRange(filters.period)),
         fetchKeywords({ dimensionType: 'global', dimensionValue: 'all', limit: 10 }),
         fetchUpPerformance(10),
       ])
-      const heatRankBvids = heatRankData.map((item) => item.bvid)
-      const matchedSentimentData = heatRankBvids.length > 0 ? await fetchVideoSentimentByBvids(heatRankBvids) : []
+      const mergedHeatRankData = mergeVideoPools(heatRankData, historicalSampleData)
+      const heatRankBvids = mergedHeatRankData.map((item) => item.bvid)
+      const matchedSentimentData = heatRankBvids.length > 0 ? await fetchVideoSentimentByBvidsInChunks(heatRankBvids) : []
       const fallbackSentimentData = matchedSentimentData.length > 0 ? matchedSentimentData : await fetchVideoSentiment(100)
-      heatRank.value = heatRankData
+      heatRank.value = mergedHeatRankData
       videoSentiments.value = fallbackSentimentData
       sentimentTrend.value = trendData
       keywords.value = keywordData
       upPerformance.value = upData
-      selectedBvid.value = heatRankData[0]?.bvid ?? ''
+      selectedBvid.value = mergedHeatRankData[0]?.bvid ?? ''
       negativeComments.value = selectedBvid.value
         ? await fetchNegativeComments({ bvid: selectedBvid.value, limit: 20 })
         : await fetchNegativeComments({ limit: 20 })
@@ -190,6 +193,31 @@ async function loadDashboardData() {
   })()
 
   return loadingPromise
+}
+
+function mergeVideoPools(primaryRows, historicalRows) {
+  const seen = new Set(primaryRows.map((item) => item.bvid))
+  const normalizedHistoricalRows = historicalRows
+    .filter((item) => item.bvid && !seen.has(item.bvid))
+    .map((item, index) => ({
+      ...item,
+      rankNo: primaryRows.length + index + 1,
+      category: item.category || '历史样本',
+      upName: item.upName || '未知UP主',
+      title: item.title || `历史评论样本：${item.bvid}`,
+      isHistoricalSample: true,
+    }))
+  return [...primaryRows, ...normalizedHistoricalRows]
+}
+
+async function fetchVideoSentimentByBvidsInChunks(bvids) {
+  const chunkSize = 100
+  const chunks = []
+  for (let i = 0; i < bvids.length; i += chunkSize) {
+    chunks.push(bvids.slice(i, i + chunkSize))
+  }
+  const results = await Promise.all(chunks.map((chunk) => fetchVideoSentimentByBvids(chunk)))
+  return results.flat()
 }
 
 async function handleRefresh() {

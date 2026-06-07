@@ -15,6 +15,8 @@ DROP TABLE IF EXISTS ads_video_sentiment;
 DROP TABLE IF EXISTS ads_video_heat_rank;
 DROP TABLE IF EXISTS ops_task_status;
 DROP TABLE IF EXISTS ops_task;
+DROP TABLE IF EXISTS ops_report_history;
+DROP TABLE IF EXISTS ops_anomaly_rule;
 
 CREATE TABLE dwd_comment_clean (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -166,3 +168,40 @@ CREATE TABLE ops_task (
   INDEX idx_bvid (bvid),
   INDEX idx_source (source)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ops_report_history (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  report_name VARCHAR(128) NOT NULL,
+  report_type VARCHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'success',
+  row_count BIGINT NOT NULL DEFAULT 0,
+  file_name VARCHAR(255),
+  remark VARCHAR(255),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_type_created (report_type, created_at),
+  INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ops_anomaly_rule (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  rule_key VARCHAR(64) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  metric VARCHAR(64) NOT NULL,
+  operator VARCHAR(16) NOT NULL,
+  threshold_value DOUBLE NOT NULL,
+  level VARCHAR(32) NOT NULL,
+  enabled TINYINT NOT NULL DEFAULT 1,
+  description VARCHAR(255),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_enabled (enabled),
+  INDEX idx_metric (metric)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO ops_anomaly_rule
+  (rule_key, name, metric, operator, threshold_value, level, enabled, description)
+VALUES
+  ('heat_top', '热度异常高', 'heatScore', '>=', 8000, 'warning', 1, '热度分超过阈值时提示优先复盘。'),
+  ('negative_risk', '负向情绪预警', 'negativeRatio', '>=', 0.2, 'danger', 1, '负向占比超过阈值时提示舆情风险。'),
+  ('interaction_high', '互动效率突出', 'interactionRate', '>=', 0.08, 'success', 1, '互动率超过阈值时提示增长样本。'),
+  ('danmaku_hotspot', '弹幕峰值片段', 'danmakuCount', '>=', 100, 'primary', 1, '弹幕峰值超过阈值时提示切片机会。');

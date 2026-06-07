@@ -40,6 +40,21 @@ const routes = [
     name: 'task',
     component: () => import('@/views/TaskPage.vue'),
   },
+  {
+    path: '/data-sources',
+    name: 'dataSource',
+    component: () => import('@/views/DataSourcePage.vue'),
+  },
+  {
+    path: '/reports',
+    name: 'reportCenter',
+    component: () => import('@/views/ReportCenterPage.vue'),
+  },
+  {
+    path: '/anomaly-rules',
+    name: 'anomalyRule',
+    component: () => import('@/views/AnomalyRulePage.vue'),
+  },
 ]
 
 const router = createRouter({

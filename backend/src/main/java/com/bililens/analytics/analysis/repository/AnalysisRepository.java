@@ -11,7 +11,10 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Date;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -22,13 +25,6 @@ public class AnalysisRepository {
     public AnalysisRepository(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
     }
-
-    /**
-     * NOTE: The {@code :param IS NULL OR column = :param} pattern used in several queries
-     * below may cause parameter sniffing issues in MySQL under high data volumes.
-     * For production scale-up, consider building dynamic SQL in the Service layer
-     * or using UNION ALL with separate branches for null and non-null parameters.
-     */
 
     public List<VideoHeatRankDto> findVideoHeatRank(int limit) {
         return jdbcClient.sql("""
@@ -82,6 +78,45 @@ public class AnalysisRepository {
                         rs.getLong("danmaku_count"),
                         rs.getDouble("heat_score"),
                         rs.getInt("rank_no")
+                ))
+                .optional();
+    }
+
+    public List<VideoHeatRankDto> findHistoricalVideoSamples(int limit) {
+        return jdbcClient.sql("""
+                        select d.bvid, count(*) as sample_count, min(d.created_at) as first_seen_at
+                        from dws_text_analysis_detail d
+                        where d.bvid is not null
+                          and not exists (
+                              select 1
+                              from ads_video_heat_rank h
+                              where h.bvid = d.bvid collate utf8mb4_unicode_ci
+                          )
+                        group by d.bvid
+                        order by first_seen_at desc, sample_count desc
+                        limit :limit
+                        """)
+                .param("limit", limit)
+                .query((rs, rowNum) -> historicalVideoSample(
+                        rs.getString("bvid"),
+                        rs.getLong("sample_count"),
+                        rowNum + 1
+                ))
+                .list();
+    }
+
+    public Optional<VideoHeatRankDto> findHistoricalVideoSampleByBvid(String bvid) {
+        return jdbcClient.sql("""
+                        select bvid, count(*) as sample_count
+                        from dws_text_analysis_detail
+                        where bvid = :bvid
+                        group by bvid
+                        """)
+                .param("bvid", bvid)
+                .query((rs, rowNum) -> historicalVideoSample(
+                        rs.getString("bvid"),
+                        rs.getLong("sample_count"),
+                        999
                 ))
                 .optional();
     }
@@ -156,6 +191,38 @@ public class AnalysisRepository {
                 .optional();
     }
 
+    public Optional<VideoSentimentDto> findHistoricalVideoSentimentByBvid(String bvid) {
+        return jdbcClient.sql("""
+                        select bvid,
+                               avg(sentiment_score) as avg_sentiment,
+                               sum(sentiment_label = 'positive') as positive_count,
+                               sum(sentiment_label = 'neutral') as neutral_count,
+                               sum(sentiment_label = 'negative') as negative_count,
+                               count(*) as total_count
+                        from dws_text_analysis_detail
+                        where bvid = :bvid
+                        group by bvid
+                        """)
+                .param("bvid", bvid)
+                .query((rs, rowNum) -> {
+                    long total = rs.getLong("total_count");
+                    long positive = rs.getLong("positive_count");
+                    long negative = rs.getLong("negative_count");
+                    return new VideoSentimentDto(
+                            rs.getString("bvid"),
+                            "历史评论样本：" + rs.getString("bvid"),
+                            rs.getDouble("avg_sentiment"),
+                            positive,
+                            rs.getLong("neutral_count"),
+                            negative,
+                            total,
+                            total > 0 ? (double) positive / total : 0,
+                            total > 0 ? (double) negative / total : 0
+                    );
+                })
+                .optional();
+    }
+
     public List<SentimentTrendDto> findSentimentTrend(Date startDate, Date endDate) {
         return jdbcClient.sql("""
                         select stat_date, comment_count, danmaku_count, avg_sentiment, negative_ratio
@@ -216,6 +283,40 @@ public class AnalysisRepository {
                 .list();
     }
 
+    public List<KeywordTopDto> findKeywordsFromTextAnalysis(String bvid, int limit) {
+        List<String> keywordTexts = jdbcClient.sql("""
+                        select keywords
+                        from dws_text_analysis_detail
+                        where bvid = :bvid
+                          and keywords is not null
+                          and keywords <> ''
+                        """)
+                .param("bvid", bvid)
+                .query(String.class)
+                .list();
+
+        Map<String, Long> counts = new HashMap<>();
+        for (String text : keywordTexts) {
+            for (String word : text.split("[,，、\\s]+")) {
+                if (!word.isBlank()) {
+                    counts.merge(word.trim(), 1L, Long::sum);
+                }
+            }
+        }
+
+        List<Map.Entry<String, Long>> sorted = counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .limit(limit)
+                .toList();
+
+        ArrayList<KeywordTopDto> result = new ArrayList<>();
+        for (int i = 0; i < sorted.size(); i++) {
+            Map.Entry<String, Long> entry = sorted.get(i);
+            result.add(new KeywordTopDto(entry.getKey(), entry.getValue(), i + 1));
+        }
+        return result;
+    }
+
     public List<UpPerformanceDto> findUpPerformance(int limit) {
         return jdbcClient.sql("""
                         select up_name, video_count, avg_view_count, avg_heat_score, avg_sentiment, total_like_count
@@ -260,19 +361,15 @@ public class AnalysisRepository {
                 .list();
     }
 
-    /**
-     * Find top videos by category, ordered by heat score.
-     * Used by Dify AI assistant for video recommendation.
-     */
     public List<VideoHeatRankDto> findVideoHeatRankByCategory(String category, int limit) {
         return jdbcClient.sql("""
-                select bvid, title, up_name, category, view_count, like_count, coin_count,
-                       favorite_count, reply_count, danmaku_count, heat_score, rank_no
-                from ads_video_heat_rank
-                where (:category is null or category = :category)
-                order by heat_score desc
-                limit :limit
-                """)
+                        select bvid, title, up_name, category, view_count, like_count, coin_count,
+                               favorite_count, reply_count, danmaku_count, heat_score, rank_no
+                        from ads_video_heat_rank
+                        where (:category is null or category = :category)
+                        order by heat_score desc
+                        limit :limit
+                        """)
                 .param("category", blankToNull(category))
                 .param("limit", limit)
                 .query((rs, rowNum) -> new VideoHeatRankDto(
@@ -294,5 +391,22 @@ public class AnalysisRepository {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private static VideoHeatRankDto historicalVideoSample(String bvid, long sampleCount, int rankNo) {
+        return new VideoHeatRankDto(
+                bvid,
+                "历史评论样本：" + bvid,
+                "未知UP主",
+                "历史样本",
+                0,
+                0,
+                0,
+                0,
+                sampleCount,
+                0,
+                0,
+                rankNo
+        );
     }
 }

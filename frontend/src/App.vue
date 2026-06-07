@@ -45,6 +45,7 @@ import MetricGrid from '@/components/metrics/MetricGrid.vue'
 import { navItems } from '@/data/dashboard'
 import { fetchVideoDetail } from '@/api/analysis'
 import { refreshTasks } from '@/api/tasks'
+import { createReportHistory, fetchAnomalyRules, fetchDataSourceStatuses, fetchReportHistory } from '@/api/platform'
 import { exportExcelWorkbook } from '@/utils/exportExcel'
 import {
   average,
@@ -81,6 +82,9 @@ const moduleCopy = {
   comment: ['评论洞察', '分析评论情感结构和负面样本，服务舆情处理与用户反馈归因。'],
   creator: ['UP主画像', '横向比较创作者能力，识别高热度账号、口碑短板和合作优先级。'],
   task: ['任务中心', '把数据发现转成运营动作，沉淀可执行的分析工作流。'],
+  dataSource: ['数据监控', '监控各层数据表的数据量、更新时间和可访问状态，保证图表可信。'],
+  reportCenter: ['报表中心', '沉淀报表生成历史，统一管理导出记录和后续下载链路。'],
+  anomalyRule: ['规则管理', '配置异常检测阈值，为热度、情感、互动和弹幕预警提供规则基础。'],
 }
 
 const exportCopy = {
@@ -91,6 +95,9 @@ const exportCopy = {
   comment: ['评论专项报表', '导出评论情感趋势、情感占比和负面评论样本。', '导出评论专项'],
   creator: ['UP主专项报表', '导出 UP 主表现排行和能力评估数据。', '导出 UP主专项'],
   task: ['运营任务报表', '导出基于数据库分析结果自动生成的运营动作建议。', '导出任务专项'],
+  dataSource: ['数据监控报表', '导出数据源状态、数据量和同步健康情况。', '导出监控报表'],
+  reportCenter: ['报表历史报表', '导出当前报表中心记录。', '导出报表历史'],
+  anomalyRule: ['异常规则报表', '导出当前异常检测规则配置。', '导出规则配置'],
 }
 
 const metricDefinitions = [
@@ -145,6 +152,9 @@ const moduleFilterConfig = computed(() => {
     comment: { showChannel: false, showPeriod: true },
     creator: { showChannel: false, showPeriod: false },
     task: { showChannel: false, showPeriod: false },
+    dataSource: { showChannel: false, showPeriod: false },
+    reportCenter: { showChannel: false, showPeriod: false },
+    anomalyRule: { showChannel: false, showPeriod: false },
   }
   return config[activeModule.value] ?? config.overview
 })
@@ -187,6 +197,10 @@ const moduleMetrics = computed(() => {
     ]
   }
 
+  if (['dataSource', 'reportCenter', 'anomalyRule'].includes(activeModule.value)) {
+    return []
+  }
+
   return [
     metric('总播放量', formatCompact(totalViews), `${visibleHeatRank.value.length} 个视频`, '来自热度排行', 'up', metricDefinitions[0][1]),
     metric('互动总量', formatCompact(totalInteraction), '点赞/投币/收藏', '评论弹幕合计', 'up', metricDefinitions[1][1]),
@@ -208,7 +222,15 @@ async function handleExportReport() {
       ElMessage.warning('暂无可导出的数据')
       return
     }
-    exportExcelWorkbook(`BiliLens_${exportMeta.value.title}_${new Date().toISOString().slice(0, 10)}.xlsx`, sheets)
+    const filename = `BiliLens_${exportMeta.value.title}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    exportExcelWorkbook(filename, sheets)
+    createReportHistory({
+      reportName: exportMeta.value.title,
+      reportType: moduleKey,
+      fileName: filename,
+      rowCount: dataRows,
+      remark: '由页面导出动作自动记录。',
+    }).catch(() => {})
     ElMessage.success(`${exportMeta.value.title}已导出`)
   } catch (error) {
     ElMessage.error(error.message || '导出失败，请稍后重试')
@@ -222,6 +244,18 @@ async function buildReportSheets(moduleKey) {
 
   if (moduleKey === 'task') {
     return withReportContext(await buildTaskSheets(), moduleKey)
+  }
+
+  if (moduleKey === 'dataSource') {
+    return withReportContext(await buildDataSourceSheets(), moduleKey)
+  }
+
+  if (moduleKey === 'reportCenter') {
+    return withReportContext(await buildReportHistorySheets(), moduleKey)
+  }
+
+  if (moduleKey === 'anomalyRule') {
+    return withReportContext(await buildAnomalyRuleSheets(), moduleKey)
   }
 
   const videoRankRows = moduleKey === 'video' ? heatRank.value : visibleHeatRank.value
@@ -280,6 +314,36 @@ async function buildTaskSheets() {
       ['status', '状态'], ['text', '说明/触发规则'], ['bvid', '关联视频'], ['source', '来源'],
       ['sortNo', '排序'], ['statusUpdatedAt', '状态更新时间'], ['updatedAt', '任务更新时间'],
     ], tasks),
+  ]
+}
+
+async function buildDataSourceSheets() {
+  const rows = await fetchDataSourceStatuses()
+  return [
+    sheet('数据源状态', [
+      ['tableName', '表名'], ['displayName', '显示名称'], ['layer', '层级'], ['rowCount', '行数'],
+      ['latestAt', '最近时间'], ['status', '状态'], ['message', '说明'],
+    ], rows),
+  ]
+}
+
+async function buildReportHistorySheets() {
+  const rows = await fetchReportHistory()
+  return [
+    sheet('报表历史', [
+      ['id', 'ID'], ['reportName', '报表名称'], ['reportType', '类型'], ['status', '状态'],
+      ['rowCount', '数据行数'], ['fileName', '文件名'], ['remark', '备注'], ['createdAt', '生成时间'],
+    ], rows),
+  ]
+}
+
+async function buildAnomalyRuleSheets() {
+  const rows = await fetchAnomalyRules()
+  return [
+    sheet('异常规则', [
+      ['ruleKey', '规则Key'], ['name', '规则名称'], ['metric', '指标'], ['operator', '条件'],
+      ['threshold', '阈值'], ['level', '级别'], ['enabled', '启用'], ['description', '说明'], ['updatedAt', '更新时间'],
+    ], rows),
   ]
 }
 
