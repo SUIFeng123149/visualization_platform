@@ -69,6 +69,36 @@ class AnalysisControllerTest {
                 .andExpect(jsonPath("$.data[0].negativeRatio").exists());
     }
 
+    @Test
+    void videoSentimentsCanBeFilteredByBvids() throws Exception {
+        mockMvc.perform(get("/api/analysis/videos/sentiment/by-bvids")
+                        .param("bvids", "BV001,BV003"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[*].bvid", containsInAnyOrder("BV001", "BV003")));
+    }
+
+    @Test
+    void videoDetailReturnsDrillDownPayload() throws Exception {
+        mockMvc.perform(get("/api/analysis/videos/BV003/detail"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.video.bvid").value("BV003"))
+                .andExpect(jsonPath("$.data.sentiment.bvid").value("BV003"))
+                .andExpect(jsonPath("$.data.danmakuTimeline", hasSize(3)))
+                .andExpect(jsonPath("$.data.keywords", hasSize(1)))
+                .andExpect(jsonPath("$.data.insights", hasSize(greaterThan(0))))
+                .andExpect(jsonPath("$.data.insights[0].title").exists());
+    }
+
+    @Test
+    void videoDetailRejectsUnknownBvid() throws Exception {
+        mockMvc.perform(get("/api/analysis/videos/BV_UNKNOWN/detail"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
     // ==================== sentiment trend ====================
 
     @Test
@@ -107,7 +137,7 @@ class AnalysisControllerTest {
         mockMvc.perform(get("/api/analysis/danmaku/timeline"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data", hasSize(8)))
+                .andExpect(jsonPath("$.data", hasSize(9)))
                 .andExpect(jsonPath("$.data[0].bvid").exists())
                 .andExpect(jsonPath("$.data[0].timeBucket").exists());
     }
@@ -141,6 +171,17 @@ class AnalysisControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data", hasSize(2)));
+    }
+
+    @Test
+    void keywordsFallbackToTimelineTopWordsWhenBvidDimensionMissing() throws Exception {
+        mockMvc.perform(get("/api/analysis/keywords")
+                        .param("dimensionType", "bvid")
+                        .param("dimensionValue", "BV002"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data", hasSize(greaterThan(0))))
+                .andExpect(jsonPath("$.data[0].word").exists());
     }
 
     // ==================== up performance ====================

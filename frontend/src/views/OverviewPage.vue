@@ -25,7 +25,7 @@
         <UpRadarChart :data="upPerformance" />
       </ChartPanel>
 
-      <RecommendationPanel :items="recommendations" />
+      <RecommendationPanel :items="globalInsights.length ? globalInsights : recommendations" />
     </div>
   </section>
 </template>
@@ -54,6 +54,7 @@ const {
   visibleHeatRank,
   keywords: kw,
   danmakuHotspots,
+  globalInsights,
 } = useDashboardData()
 
 const dynamicInsightCards = computed(() => [

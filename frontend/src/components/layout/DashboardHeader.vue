@@ -6,18 +6,31 @@
     </div>
 
     <div class="filters">
-      <el-select :model-value="filters.channel" aria-label="分区筛选" @update:model-value="updateFilter('channel', $event)">
-        <el-option label="综合分区" value="all" />
+      <el-select
+        v-if="showChannelFilter"
+        :model-value="filters.channel"
+        aria-label="内容类型筛选"
+        @update:model-value="updateFilter('channel', $event)"
+      >
+        <el-option label="全部类型" value="all" />
         <el-option label="知识" value="知识" />
         <el-option label="科技" value="科技" />
         <el-option label="游戏" value="游戏" />
         <el-option label="动画" value="动画" />
         <el-option label="音乐" value="音乐" />
+        <el-option label="生活" value="生活" />
+        <el-option label="娱乐" value="娱乐" />
+        <el-option label="综合" value="综合" />
       </el-select>
-      <el-select :model-value="filters.period" aria-label="周期筛选" @update:model-value="updateFilter('period', $event)">
-        <el-option label="近 7 天" value="7d" />
-        <el-option label="近 30 天" value="30d" />
-        <el-option label="近 90 天" value="90d" />
+      <el-select
+        v-if="showPeriodFilter"
+        :model-value="filters.period"
+        aria-label="趋势周期筛选"
+        @update:model-value="updateFilter('period', $event)"
+      >
+        <el-option label="趋势近 7 天" value="7d" />
+        <el-option label="趋势近 30 天" value="30d" />
+        <el-option label="趋势近 90 天" value="90d" />
       </el-select>
       <el-button type="primary" :icon="Refresh" @click="$emit('refresh')">刷新数据</el-button>
     </div>
@@ -39,6 +52,14 @@ const props = defineProps({
   description: {
     type: String,
     required: true,
+  },
+  showChannelFilter: {
+    type: Boolean,
+    default: true,
+  },
+  showPeriodFilter: {
+    type: Boolean,
+    default: true,
   },
 })
 

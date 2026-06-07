@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Date;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public class AnalysisRepository {
@@ -32,9 +33,9 @@ public class AnalysisRepository {
     public List<VideoHeatRankDto> findVideoHeatRank(int limit) {
         return jdbcClient.sql("""
                         select bvid, title, up_name, category, view_count, like_count, coin_count,
-                               favorite_count, reply_count, danmaku_count, heat_score, rank_no
+                               favorite_count, reply_count, danmaku_count, heat_score
                         from ads_video_heat_rank
-                        order by rank_no
+                        order by heat_score desc, rank_no, bvid
                         limit :limit
                         """)
                 .param("limit", limit)
@@ -50,18 +51,50 @@ public class AnalysisRepository {
                         rs.getLong("reply_count"),
                         rs.getLong("danmaku_count"),
                         rs.getDouble("heat_score"),
-                        rs.getInt("rank_no")
+                        rowNum + 1
                 ))
                 .list();
     }
 
-    public List<VideoSentimentDto> findVideoSentiments() {
+    public Optional<VideoHeatRankDto> findVideoHeatRankByBvid(String bvid) {
+        return jdbcClient.sql("""
+                        select h.bvid, h.title, h.up_name, h.category, h.view_count, h.like_count, h.coin_count,
+                               h.favorite_count, h.reply_count, h.danmaku_count, h.heat_score,
+                               (
+                                   select count(*) + 1
+                                   from ads_video_heat_rank higher
+                                   where higher.heat_score > h.heat_score
+                               ) as rank_no
+                        from ads_video_heat_rank h
+                        where h.bvid = :bvid
+                        """)
+                .param("bvid", bvid)
+                .query((rs, rowNum) -> new VideoHeatRankDto(
+                        rs.getString("bvid"),
+                        rs.getString("title"),
+                        rs.getString("up_name"),
+                        rs.getString("category"),
+                        rs.getLong("view_count"),
+                        rs.getLong("like_count"),
+                        rs.getLong("coin_count"),
+                        rs.getLong("favorite_count"),
+                        rs.getLong("reply_count"),
+                        rs.getLong("danmaku_count"),
+                        rs.getDouble("heat_score"),
+                        rs.getInt("rank_no")
+                ))
+                .optional();
+    }
+
+    public List<VideoSentimentDto> findVideoSentiments(int limit) {
         return jdbcClient.sql("""
                         select bvid, title, avg_sentiment, positive_count, neutral_count,
                                negative_count, total_count, positive_ratio, negative_ratio
                         from ads_video_sentiment
-                        order by bvid
+                        order by total_count desc
+                        limit :limit
                         """)
+                .param("limit", limit)
                 .query((rs, rowNum) -> new VideoSentimentDto(
                         rs.getString("bvid"),
                         rs.getString("title"),
@@ -74,6 +107,53 @@ public class AnalysisRepository {
                         rs.getDouble("negative_ratio")
                 ))
                 .list();
+    }
+
+    public List<VideoSentimentDto> findVideoSentimentsByBvids(List<String> bvids) {
+        if (bvids == null || bvids.isEmpty()) {
+            return List.of();
+        }
+        return jdbcClient.sql("""
+                        select bvid, title, avg_sentiment, positive_count, neutral_count,
+                               negative_count, total_count, positive_ratio, negative_ratio
+                        from ads_video_sentiment
+                        where bvid in (:bvids)
+                        """)
+                .param("bvids", bvids)
+                .query((rs, rowNum) -> new VideoSentimentDto(
+                        rs.getString("bvid"),
+                        rs.getString("title"),
+                        rs.getDouble("avg_sentiment"),
+                        rs.getLong("positive_count"),
+                        rs.getLong("neutral_count"),
+                        rs.getLong("negative_count"),
+                        rs.getLong("total_count"),
+                        rs.getDouble("positive_ratio"),
+                        rs.getDouble("negative_ratio")
+                ))
+                .list();
+    }
+
+    public Optional<VideoSentimentDto> findVideoSentimentByBvid(String bvid) {
+        return jdbcClient.sql("""
+                        select bvid, title, avg_sentiment, positive_count, neutral_count,
+                               negative_count, total_count, positive_ratio, negative_ratio
+                        from ads_video_sentiment
+                        where bvid = :bvid
+                        """)
+                .param("bvid", bvid)
+                .query((rs, rowNum) -> new VideoSentimentDto(
+                        rs.getString("bvid"),
+                        rs.getString("title"),
+                        rs.getDouble("avg_sentiment"),
+                        rs.getLong("positive_count"),
+                        rs.getLong("neutral_count"),
+                        rs.getLong("negative_count"),
+                        rs.getLong("total_count"),
+                        rs.getDouble("positive_ratio"),
+                        rs.getDouble("negative_ratio")
+                ))
+                .optional();
     }
 
     public List<SentimentTrendDto> findSentimentTrend(Date startDate, Date endDate) {
@@ -98,14 +178,16 @@ public class AnalysisRepository {
 
     public List<DanmakuTimelineDto> findDanmakuTimeline(String bvid) {
         return jdbcClient.sql("""
-                        select bvid, time_bucket, danmaku_count, avg_sentiment, top_words
-                        from ads_danmaku_timeline
-                        where (:bvid is null or bvid = :bvid)
-                        order by bvid, time_bucket
+                        select t.bvid, v.title, t.time_bucket, t.danmaku_count, t.avg_sentiment, t.top_words
+                        from ads_danmaku_timeline t
+                        left join ads_video_heat_rank v on t.bvid = v.bvid
+                        where (:bvid is null or t.bvid = :bvid)
+                        order by t.bvid, t.time_bucket
                         """)
                 .param("bvid", blankToNull(bvid))
                 .query((rs, rowNum) -> new DanmakuTimelineDto(
                         rs.getString("bvid"),
+                        rs.getString("title"),
                         rs.getInt("time_bucket"),
                         rs.getLong("danmaku_count"),
                         rs.getDouble("avg_sentiment"),

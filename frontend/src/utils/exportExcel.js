@@ -1,59 +1,35 @@
-function escapeXml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}
-
-// Excel formula injection protection: prefix values starting with =, +, -, @ with a tab
-function sanitizeCell(value) {
-  const str = String(value ?? '')
-  if (/^[=+\-@]/.test(str)) {
-    return '\t' + str
-  }
-  return str
-}
-
-function cell(value) {
-  const type = typeof value === 'number' && Number.isFinite(value) ? 'Number' : 'String'
-  const safe = type === 'Number' ? escapeXml(value) : escapeXml(sanitizeCell(value))
-  return `<Cell><Data ss:Type="${type}">${safe}</Data></Cell>`
-}
-
-function worksheet(sheet) {
-  const header = `<Row>${sheet.columns.map((column) => cell(column.label)).join('')}</Row>`
-  const rows = sheet.rows
-    .map((row) => `<Row>${sheet.columns.map((column) => cell(row[column.key])).join('')}</Row>`)
-    .join('')
-
-  return `
-    <Worksheet ss:Name="${escapeXml(sheet.name)}">
-      <Table>${header}${rows}</Table>
-    </Worksheet>
-  `
-}
+import * as XLSX from 'xlsx'
 
 export function exportExcelWorkbook(filename, sheets) {
-  const workbook = `<?xml version="1.0" encoding="UTF-8"?>
-  <Workbook
-    xmlns="urn:schemas-microsoft-com:office:spreadsheet"
-    xmlns:o="urn:schemas-microsoft-com:office:office"
-    xmlns:x="urn:schemas-microsoft-com:office:excel"
-    xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-    ${sheets.map(worksheet).join('')}
-  </Workbook>`
+  const wb = XLSX.utils.book_new()
 
-  const blob = new Blob([workbook], {
-    type: 'application/vnd.ms-excel;charset=utf-8',
+  sheets.forEach(sheet => {
+    // Build header row
+    const headerRow = sheet.columns.map(col => col.label)
+    // Build data rows
+    const dataRows = sheet.rows.map(row =>
+      sheet.columns.map(col => {
+        const value = row[col.key]
+        return value !== undefined && value !== null ? value : ''
+      })
+    )
+
+    // Combine header + data
+    const wsData = [headerRow, ...dataRows]
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+    // Auto-fit column widths (approximate)
+    const colWidths = sheet.columns.map((col, i) => {
+      const maxLen = Math.max(
+        col.label.length,
+        ...dataRows.map(row => String(row[i] || '').length)
+      )
+      return { wch: Math.max(8, Math.min(60, maxLen + 4)) }
+    })
+    ws['!cols'] = colWidths
+
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name)
   })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename.endsWith('.xls') ? filename : `${filename}.xls`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+
+  XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : filename + '.xlsx')
 }

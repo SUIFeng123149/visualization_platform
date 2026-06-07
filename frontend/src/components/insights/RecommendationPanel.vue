@@ -7,7 +7,7 @@
       </div>
     </div>
     <div class="recommend-list">
-      <div v-for="item in items" :key="item.title" class="recommend-item">
+      <div v-for="item in items" :key="item.title" class="recommend-item" @click="openInsight(item)">
         <div class="recommend-head">
           <strong>{{ item.title }}</strong>
           <el-tag :type="item.type" effect="light">{{ item.level }}</el-tag>
@@ -19,10 +19,19 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router'
+
 defineProps({
   items: {
     type: Array,
     required: true,
   },
 })
+
+const router = useRouter()
+
+function openInsight(item) {
+  if (!item.bvid) return
+  router.push({ name: 'videoDetail', params: { bvid: item.bvid } })
+}
 </script>

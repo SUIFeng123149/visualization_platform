@@ -24,6 +24,7 @@ const scatterData = computed(() =>
     item.danmakuCount,
     Number((item.avgSentiment * 100).toFixed(1)),
     item.topWords,
+    item.title || item.bvid,
   ]),
 )
 

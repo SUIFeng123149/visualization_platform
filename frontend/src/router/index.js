@@ -16,6 +16,11 @@ const routes = [
     component: () => import('@/views/VideoPage.vue'),
   },
   {
+    path: '/video/:bvid',
+    name: 'videoDetail',
+    component: () => import('@/views/VideoDetailPage.vue'),
+  },
+  {
     path: '/danmaku',
     name: 'danmaku',
     component: () => import('@/views/DanmakuPage.vue'),

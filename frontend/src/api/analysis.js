@@ -4,8 +4,16 @@ export function fetchHeatRank(limit = 10) {
   return request('/api/analysis/videos/heat-rank', { limit })
 }
 
-export function fetchVideoSentiment() {
-  return request('/api/analysis/videos/sentiment')
+export function fetchVideoSentiment(limit = 100) {
+  return request('/api/analysis/videos/sentiment', { limit })
+}
+
+export function fetchVideoSentimentByBvids(bvids = []) {
+  return request('/api/analysis/videos/sentiment/by-bvids', { bvids: bvids.join(',') })
+}
+
+export function fetchVideoDetail(bvid) {
+  return request(`/api/analysis/videos/${encodeURIComponent(bvid)}/detail`)
 }
 
 export function fetchSentimentTrend(params = {}) {

@@ -28,6 +28,13 @@ export function useEChart(targetRef, optionFactory, sources = []) {
   const chart = shallowRef(null)
   let resizeObserver
 
+  function scheduleResize() {
+    requestAnimationFrame(() => {
+      resize()
+      requestAnimationFrame(resize)
+    })
+  }
+
   function render() {
     if (!targetRef.value) {
       dispose()
@@ -39,7 +46,7 @@ export function useEChart(targetRef, optionFactory, sources = []) {
     }
 
     chart.value.setOption(optionFactory(), true)
-    resize()
+    scheduleResize()
   }
 
   function resize() {
@@ -71,7 +78,7 @@ export function useEChart(targetRef, optionFactory, sources = []) {
     watch(sources, async () => {
       await nextTick()
       render()
-    })
+    }, { flush: 'post' })
   }
 
   return {
