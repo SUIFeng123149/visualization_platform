@@ -48,6 +48,6 @@ analytics:
   cache:
     refresh-interval-minutes: 5
   dify:
-    base-url: ${DIFY_BASE_URL:}
-    api-key: ${DIFY_API_KEY:}
+    base-url: ${DIFY_BASE_URL:http://localhost/v1}
+    api-key: ${DIFY_API_KEY:app-yaNh1KU06VZE94eZ2BrKgpJw}
     user: ${DIFY_USER:bililens-user}

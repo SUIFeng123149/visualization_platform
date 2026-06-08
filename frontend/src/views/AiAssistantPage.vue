@@ -15,10 +15,11 @@
         </button>
       </div>
 
-      <div class="chat-window">
+      <div ref="chatWindowRef" class="chat-window">
         <div v-for="message in messages" :key="message.id" class="chat-message" :class="`chat-${message.role}`">
-          <strong>{{ message.role === 'user' ? '我' : 'AI助手' }}</strong>
-          <p>{{ message.content }}</p>
+          <strong class="chat-role-label">{{ message.role === 'user' ? '我' : 'AI助手' }}</strong>
+          <div v-if="message.role === 'user'" class="user-content">{{ message.content }}</div>
+          <div v-else class="assistant-content markdown-body" v-html="renderMarkdown(message.content)"></div>
         </div>
       </div>
 
@@ -62,10 +63,18 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { chatWithAssistant } from '@/api/ai'
+import MarkdownIt from 'markdown-it'
+import { consumeAssistantStream } from '@/api/ai'
 import { getInteractions, useDashboardData } from '@/composables/useDashboardData'
+
+const md = new MarkdownIt({
+  html: false,
+  linkify: true,
+  typographer: true,
+  breaks: true,
+})
 
 const {
   filters,
@@ -82,6 +91,7 @@ const loading = ref(false)
 const query = ref('')
 const conversationId = ref('')
 const lastConfigured = ref(null)
+const chatWindowRef = ref(null)
 const messages = ref([
   {
     id: 1,
@@ -132,31 +142,103 @@ async function sendMessage() {
 
   messages.value.push({ id: Date.now(), role: 'user', content })
   query.value = ''
+  await scrollChatToBottom()
   loading.value = true
+
+  const assistantMessage = {
+    id: Date.now() + 1,
+    role: 'assistant',
+    content: '',
+  }
+  messages.value.push(assistantMessage)
+  const assistantMessageId = assistantMessage.id
+
   try {
-    const response = await chatWithAssistant({
-      query: content,
-      mode: 'platform-qa',
-      context: platformContext.value,
-      conversationId: conversationId.value,
-      user: 'bililens-dashboard',
-    })
-    conversationId.value = response.conversationId || conversationId.value
-    lastConfigured.value = response.configured
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: response.answer,
-    })
+    await consumeAssistantStream(
+      {
+        query: content,
+        mode: 'platform-qa',
+        context: platformContext.value,
+        conversationId: conversationId.value,
+        user: 'bililens-dashboard',
+      },
+      {
+        onMessage(chunk) {
+          appendAssistantContent(assistantMessageId, chunk)
+          void scrollChatToBottom()
+        },
+        onDone(payload) {
+          conversationId.value = payload?.conversation_id || conversationId.value
+        },
+        onError(message) {
+          throw new Error(message || 'AI助手请求失败')
+        },
+      },
+    )
+
+    if (!getMessageContent(assistantMessageId)) {
+      setAssistantContent(assistantMessageId, 'Dify 未返回有效内容。')
+    }
+    lastConfigured.value = true
+    await scrollChatToBottom()
   } catch (error) {
+    if (!getMessageContent(assistantMessageId)) {
+      setAssistantContent(assistantMessageId, `AI助手请求失败：${error.message || '请检查后端 Dify 配置或网络连接。'}`)
+    }
     ElMessage.error(error.message || 'AI助手请求失败')
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: 'AI助手请求失败，请检查后端 Dify 配置或网络连接。',
-    })
+    await scrollChatToBottom()
   } finally {
     loading.value = false
+  }
+}
+
+function renderMarkdown(content) {
+  return md.render(normalizeAiAnswer(content || ''))
+}
+
+function normalizeAiAnswer(content) {
+  return String(content || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/(^|\n)(#{1,6})([^\s#])/g, '$1$2 $3')
+    .replace(/(^|\n)\s*-\s*/g, '$1- ')
+    .replace(/(^|\n)\s*(\d+)\.\s*\n\s*/g, '$1$2. ')
+    .replace(/([^\n])\s*(\d+)\.\s*\n\s*/g, '$1\n$2. ')
+    .replace(/(^|\n)\s*(原因|建议|需要补充的数据)\s*(?=\n|$)/g, '$1## $2')
+    .replace(/(^|\n)(热度表现|情感倾向|数据质量|内容特征|爆款驱动热度|舆情平稳原因|分类缺失原因|关键词泛化|优先复盘头部爆款|修复数据分类链路|深化关键词洞察|监控舆情波动|视频分区分布数据|详细评论文本数据|时间序列趋势数据|UP主粉丝画像)(?![：:])(?=\S)/g, '$1$2：')
+    .replace(/(^|\n)([\u4e00-\u9fa5A-Za-z0-9_（）()《》【】“”'"-]{1,40})\s*\n\s*[：:]\s*/g, '$1$2：')
+    .replace(/(^|\n)\s*[：:]\s*/g, '$1')
+    .replace(/([\u4e00-\u9fa5])\s+([：:])/g, '$1：')
+    .replace(/\n{3,}/g, '\n\n')
+}
+
+function appendAssistantContent(messageId, chunk) {
+  updateAssistantMessage(messageId, (message) => ({
+    ...message,
+    content: `${message.content || ''}${chunk}`,
+  }))
+}
+
+function setAssistantContent(messageId, content) {
+  updateAssistantMessage(messageId, (message) => ({
+    ...message,
+    content,
+  }))
+}
+
+function getMessageContent(messageId) {
+  return messages.value.find((message) => message.id === messageId)?.content || ''
+}
+
+function updateAssistantMessage(messageId, updater) {
+  const index = messages.value.findIndex((message) => message.id === messageId)
+  if (index === -1) return
+  messages.value[index] = updater(messages.value[index])
+}
+
+async function scrollChatToBottom() {
+  await nextTick()
+  if (chatWindowRef.value) {
+    chatWindowRef.value.scrollTop = chatWindowRef.value.scrollHeight
   }
 }
 </script>
