@@ -1,58 +1,70 @@
-# BiliLens 可视化分析平台
+# BiliLens 数据可视化平台
 
-BiliLens 是一个面向 B 站内容运营场景的数据可视化平台。项目通过后端 API 聚合视频热度、评论情感、弹幕时间轴、关键词和 UP 主表现等分析结果，并在前端以数据看板的形式提供浏览、筛选、复盘和报表导出能力。
+BiliLens 是一个面向 B 站内容分析场景的数据可视化平台。项目围绕视频热度、评论情感、弹幕高峰、主题关键词、UP 主画像、运营任务、报表历史和 AI 辅助分析，提供从数据汇总到运营复盘的一体化看板。
 
-## 项目定位
+当前项目包含三部分：
 
-本项目适合作为内容数据分析、舆情洞察、运营复盘和可视化课程设计的基础平台。当前版本聚焦“分析结果展示”和“运营决策辅助”，默认使用 MySQL 存放分析宽表和明细表，后端提供 REST API，前端负责交互式可视化呈现。
+- `backend`：Spring Boot REST API，负责读取 MySQL 分析表、生成任务、记录报表、代理 Dify AI 调用。
+- `frontend`：Vue 3 + Vite 数据看板，负责图表展示、筛选、复盘、导出和 AI 交互。
+- `bilibili_data_pipeline`：数据处理与导入相关脚本和文档，产出 DWD/DWS/ADS 层数据。
+
+## 功能概览
+
+- 数据总览：展示视频热度排行、播放/互动趋势、情感结构、弹幕高峰、关键词和数据质量。
+- 视频分析：查看视频样本池、热度对比、互动率、正向占比和可复盘视频。
+- 视频复盘：单视频详情页展示基础指标、复盘评分、情感结构、弹幕切片、关键词、相似视频和负面评论样本。
+- 弹幕分析：定位视频高能时间点，辅助二创切片和内容复盘。
+- 评论洞察：分析评论情感趋势、正负向占比和高赞负面评论。
+- UP 主画像：对比创作者热度、播放、互动和口碑表现。
+- 任务中心：根据热度、情感、弹幕和 UP 主表现自动生成运营任务，并保存任务状态。
+- 数据监控：查看关键数据表行数、最近更新时间和健康状态。
+- 报表中心：记录报表导出历史，支持按模块导出 Excel。
+- 规则管理：维护异常检测规则，例如高热度、负向情绪、互动率和弹幕高峰阈值。
+- AI 助手：接入 Dify，支持页面解读、视频复盘、异常诊断、报表摘要和平台问数。
 
 ## 技术栈
 
-- 前端：Vue 3、Vite、Element Plus、ECharts
-- 后端：Java 21、Spring Boot 4、Spring JDBC、Spring Validation、Actuator
-- 数据库：MySQL，测试环境使用 H2
-- 构建工具：npm、Maven
+| 模块 | 技术 |
+| --- | --- |
+| 前端 | Vue 3, Vite, Element Plus, ECharts, xlsx |
+| 后端 | Java 21, Spring Boot 4, Spring JDBC, Validation, Actuator |
+| 数据库 | MySQL 8，测试环境使用 H2 |
+| AI | Dify Chat API，后端代理调用 |
+| 构建 | npm, Maven |
 
 ## 目录结构
 
 ```text
 visualization_platform/
-├── backend/                 # Spring Boot 后端服务
-│   ├── src/main/java/        # API、Service、Repository、DTO
-│   ├── src/main/resources/   # 后端配置
-│   ├── src/test/             # 后端集成测试和 H2 测试数据
-│   └── sql/mysql/            # MySQL 建表脚本和占位数据
-├── frontend/                # Vue 前端看板
-│   ├── src/api/              # API 请求封装
-│   ├── src/components/       # 布局、指标、图表、表格组件
-│   ├── src/composables/      # ECharts 组合式逻辑
-│   ├── src/data/             # 导航和运营建议静态配置
-│   ├── src/styles/           # 全局样式
-│   └── src/utils/            # 图表工具、Excel 导出工具
-└── README.md                # 项目总说明
+├── backend/                  # Spring Boot 后端服务
+│   ├── src/main/java/         # Controller, Service, Repository, DTO
+│   ├── src/main/resources/    # application.yml
+│   ├── src/test/              # H2 测试库和集成测试
+│   └── sql/mysql/             # MySQL 建表脚本和样例数据
+├── frontend/                 # Vue 前端看板
+│   ├── src/api/               # API 请求封装
+│   ├── src/components/        # 布局、图表、表格、AI 组件
+│   ├── src/composables/       # 数据加载和图表逻辑
+│   ├── src/views/             # 页面模块
+│   ├── src/styles/            # 全局样式
+│   └── vite.config.js         # Vite 代理和构建配置
+├── bilibili_data_pipeline/    # 数据处理、导入脚本和交付文档
+├── bilibili/                  # 采集相关子模块
+├── bilibili_ai_dify/          # Dify/AI 相关材料
+└── README.md
 ```
-
-## 核心功能
-
-- 数据总览：展示播放量、互动量、平均情感、最高热度等关键指标。
-- 视频分析：按热度、互动率、正向占比查看视频表现。
-- 弹幕分析：用散点图定位弹幕高峰片段，辅助剪辑和复盘。
-- 评论洞察：展示评论情感占比、情感趋势和负面评论样本。
-- UP 主画像：用雷达图和排行表对比创作者表现。
-- 任务中心：沉淀基于数据洞察的运营动作建议。
-- 报表导出：按模块导出 Excel 格式分析报表。
 
 ## 环境要求
 
-- Node.js 18 或更高版本
-- npm 9 或更高版本
+- Node.js 18+
+- npm 9+
 - JDK 21
-- Maven 3.9 或更高版本
-- MySQL 8 或兼容版本
+- Maven 3.9+
+- MySQL 8+
 
 ## 数据库初始化
 
-先创建并初始化 MySQL 数据库：
+默认数据库名为 `bilibili_analysis`。
 
 ```powershell
 cd backend
@@ -60,17 +72,44 @@ mysql -u root -p < sql/mysql/schema.sql
 mysql -u root -p bilibili_analysis < sql/mysql/placeholder-data.sql
 ```
 
-`placeholder-data.sql` 只包含占位样例数据。接入真实数据时，应替换为爬虫、清洗、情感分析和聚合计算后的结果表数据。
+`placeholder-data.sql` 只用于演示。真实数据应由数据处理流程写入 DWD/DWS/ADS 表。
+
+### 核心数据表
+
+| 表名 | 作用 |
+| --- | --- |
+| `dwd_comment_clean` | 评论清洗明细，支持负面评论样本 |
+| `dwd_danmaku_clean` | 弹幕清洗明细，支持弹幕时间分析 |
+| `dws_text_analysis_detail` | 文本分析明细，包含分词、关键词、情感分和标签 |
+| `ads_video_heat_rank` | 视频热度排行，驱动视频榜单和总览 |
+| `ads_video_sentiment` | 视频情感统计，驱动正向占比和情感图表 |
+| `ads_sentiment_by_date` | 按日期聚合的情感趋势 |
+| `ads_danmaku_timeline` | 视频弹幕时间轴聚合 |
+| `ads_keyword_top` | 全局/视频维度关键词 TopN |
+| `ads_up_performance` | UP 主表现聚合 |
+| `ops_task` | 自动生成或人工录入的运营任务 |
+| `ops_task_status` | 任务状态持久化 |
+| `ops_report_history` | 报表导出历史 |
+| `ops_anomaly_rule` | 异常检测规则 |
 
 ## 后端启动
 
-后端默认端口为 `8080`。生产或本地连接 MySQL 时，通过环境变量配置数据库连接：
+默认配置在 [backend/src/main/resources/application.yml](backend/src/main/resources/application.yml)。
+
+当前默认连接：
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/bilibili_analysis?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+```
+
+启动：
 
 ```powershell
 cd backend
-$env:MYSQL_URL="jdbc:mysql://localhost:3306/bilibili_analysis?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
-$env:MYSQL_USERNAME="root"
-$env:MYSQL_PASSWORD="your_password"
 mvn "-Dmaven.repo.local=.m2/repository" spring-boot:run
 ```
 
@@ -80,9 +119,16 @@ mvn "-Dmaven.repo.local=.m2/repository" spring-boot:run
 GET http://localhost:8080/actuator/health
 ```
 
+运行测试：
+
+```powershell
+cd backend
+mvn "-Dmaven.repo.local=.m2/repository" test
+```
+
 ## 前端启动
 
-前端默认使用 Vite 开发服务器，端口通常为 `5173`。开发环境下已配置 `/api` 代理到 `http://localhost:8080`。
+开发环境下，Vite 已将 `/api` 和 `/actuator` 代理到 `http://localhost:8080`。
 
 ```powershell
 cd frontend
@@ -96,100 +142,174 @@ npm run dev
 http://localhost:5173
 ```
 
-如果前后端不是同源部署，可以基于示例文件创建本地环境配置：
-
-```powershell
-cd frontend
-copy .env.development.example .env.development
-```
-
-常用前端环境变量：
-
-```env
-VITE_API_BASE_URL=
-VITE_API_TIMEOUT_MS=15000
-```
-
-## 构建与测试
-
-后端测试：
-
-```powershell
-cd backend
-mvn "-Dmaven.repo.local=.m2/repository" test
-```
-
-前端生产构建：
+生产构建：
 
 ```powershell
 cd frontend
 npm run build
 ```
 
-前端本地预览：
+本地预览：
 
 ```powershell
 cd frontend
 npm run preview
 ```
 
-## API 概览
+## Dify AI 助手配置
 
-后端主要接口统一以 `/api/analysis` 开头：
+AI 助手由后端代理调用 Dify，前端不会暴露 API Key。
 
-- `GET /api/analysis/videos/heat-rank?limit=10`
-- `GET /api/analysis/videos/sentiment`
-- `GET /api/analysis/sentiment/trend?startDate=2026-05-01&endDate=2026-06-01`
-- `GET /api/analysis/danmaku/timeline?bvid=BV001`
-- `GET /api/analysis/keywords?dimensionType=global&dimensionValue=all&limit=30`
-- `GET /api/analysis/ups/performance?limit=10`
-- `GET /api/analysis/comments/negative?bvid=BV001&limit=20`
+后端配置项：
 
-接口响应统一包装为：
+```yaml
+analytics:
+  dify:
+    base-url: ${DIFY_BASE_URL:}
+    api-key: ${DIFY_API_KEY:}
+    user: ${DIFY_USER:bililens-user}
+```
+
+推荐使用环境变量：
+
+```powershell
+$env:DIFY_BASE_URL="https://api.dify.ai/v1"
+$env:DIFY_API_KEY="app-xxxx"
+$env:DIFY_USER="bililens-user"
+```
+
+如果未配置 Dify，`/api/ai/chat` 会返回本地兜底提示，不影响其它页面使用。
+
+推荐 Dify 应用提示词：
+
+```text
+你是 BiliLens 数据可视化平台的 AI 数据分析助手。
+请基于用户问题和传入的页面上下文进行分析。
+如果上下文不足，必须明确说明缺少哪些数据，不要编造指标。
+回答优先包含：结论、原因、建议、需要补充的数据。
+```
+
+## 常用 API
+
+所有业务响应统一包装为：
 
 ```json
 {
   "code": 200,
   "message": "success",
-  "data": []
+  "data": {}
 }
 ```
 
-## 配置说明
+### 分析接口
 
-后端环境变量：
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/analysis/videos/heat-rank?limit=100` | 视频热度排行 |
+| `GET /api/analysis/videos/historical-samples?limit=30` | 历史文本样本视频 |
+| `GET /api/analysis/videos/sentiment?limit=100` | 视频情感统计 |
+| `GET /api/analysis/videos/sentiment/by-bvids?bvids=BV1,BV2` | 按 BVID 查询情感 |
+| `GET /api/analysis/videos/{bvid}/detail` | 单视频复盘详情 |
+| `GET /api/analysis/sentiment/trend?startDate=2026-05-01&endDate=2026-06-08` | 情感趋势 |
+| `GET /api/analysis/danmaku/timeline?bvid=BVxxx` | 弹幕时间轴 |
+| `GET /api/analysis/keywords?dimensionType=global&dimensionValue=all&limit=30` | 关键词 TopN |
+| `GET /api/analysis/ups/performance?limit=10` | UP 主表现 |
+| `GET /api/analysis/comments/negative?bvid=BVxxx&limit=20` | 负面评论样本 |
 
-- `MYSQL_URL`：MySQL JDBC 连接地址。
-- `MYSQL_USERNAME`：MySQL 用户名，默认 `root`。
-- `MYSQL_PASSWORD`：MySQL 密码，源码中不提供默认密码。
+### 运营和平台接口
 
-前端环境变量：
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/tasks` | 查询任务列表 |
+| `POST /api/tasks/refresh` | 基于当前数据重新生成任务 |
+| `PUT /api/tasks/statuses/{taskId}` | 更新任务状态 |
+| `GET /api/platform/data-sources/status` | 数据源状态 |
+| `GET /api/platform/reports` | 报表历史 |
+| `POST /api/platform/reports` | 记录报表导出 |
+| `GET /api/platform/anomaly-rules` | 异常规则 |
+| `POST /api/ai/chat` | AI 助手问答 |
 
-- `VITE_API_BASE_URL`：接口基础地址。为空时默认请求当前站点同源接口。
-- `VITE_API_TIMEOUT_MS`：前端请求超时时间，默认 `15000` 毫秒。
+## 数据口径
 
-## 当前工程特性
+- 热度分：来自 `ads_video_heat_rank.heat_score`，综合播放、互动、评论和弹幕等指标。
+- 互动总量：点赞、投币、收藏、评论、弹幕数量的合计。
+- 互动率：互动总量 / 播放量。
+- 正向占比：`positive_count / total_count`，无情感样本时不计算。
+- 负向占比：`negative_count / total_count`，用于舆情风险判断。
+- 弹幕高峰：来自 `ads_danmaku_timeline` 中同一时间桶的弹幕数量。
+- 关键词：优先使用 `ads_keyword_top`，单视频缺失时可从 `dws_text_analysis_detail.keywords` 回退生成。
 
-- 前端请求封装包含超时、网络错误处理和统一业务响应解析。
-- 页面提供加载失败提示和重试入口。
-- 图表和表格提供空数据状态，避免接口异常时出现空白区域。
-- ECharts、Element Plus 组件、图标和样式已按需引入。
-- Vite 构建已拆分 ECharts、Element Plus 和通用 vendor chunk。
-- 后端对请求参数做基础校验，并对日期范围错误返回 400。
-- 后端集成测试使用 H2 独立数据，不依赖本地 MySQL。
+## 已知约束
 
-## 后续可完善方向
+- 热度榜接口当前最大 `limit` 为 100，因此前端默认最多加载 100 条热度样本。
+- 若导入数据中时间字段为 `2026-06-02T11:16:29+00:00` 这类 ISO 字符串，后端负面评论查询已做兼容；更推荐入库时统一为 MySQL `DATETIME` 格式。
+- `ads_keyword_top` 是聚合表，如果某个视频没有该表记录，视频详情会尝试从 DWS 文本分析明细中回退生成关键词。
+- 任务中心的数据由 `/api/tasks/refresh` 基于当前数据库分析结果生成并写入 `ops_task`，状态写入 `ops_task_status`。
+- 报表中心只记录导出历史和元信息，Excel 文件由浏览器端即时生成下载。
 
-- 增加登录鉴权和角色权限。
-- 增加接口文档，例如 OpenAPI/Swagger。
-- 增加数据导入流程，将 CSV、爬虫数据或离线分析结果接入 MySQL。
-- 增加更多筛选维度，例如分区、UP 主、视频、日期范围和关键词。
-- 增加详情抽屉，支持从视频、弹幕高峰、负面评论下钻到明细。
-- 增加 CI 流程，自动运行后端测试和前端构建。
-- 增加 Docker Compose，一键启动 MySQL、后端和前端。
+## 常见问题
 
-## 注意事项
+### 前端只显示 100 条视频
 
-- 不要将真实数据库密码写入源码或提交到 Git。
-- `backend/sql/mysql/placeholder-data.sql` 仅用于演示，不代表真实业务数据。
-- 根目录如果出现无对应 `package.json` 的 `package-lock.json`，通常是误在根目录执行 npm 命令生成的文件，需要按团队约定确认是否保留。
+这是接口限制，不是数据库缺数据。前端默认请求 `limit=100`，后端 `heat-rank` 接口也限制最大 100。
+
+### 某些视频没有正向占比
+
+通常是 `ads_video_sentiment` 中没有该 BVID 的情感聚合记录，或者该视频没有评论/文本分析样本。
+
+### 视频详情没有关键词
+
+优先检查：
+
+```sql
+select *
+from ads_keyword_top
+where dimension_type = 'bvid'
+  and dimension_value = '目标BVID';
+```
+
+如果聚合表为空，再检查：
+
+```sql
+select count(*)
+from dws_text_analysis_detail
+where bvid = '目标BVID'
+  and keywords is not null
+  and keywords <> '';
+```
+
+### 任务中心刷新后没有任务
+
+检查 `ads_video_heat_rank`、`ads_video_sentiment`、`ads_danmaku_timeline`、`ads_up_performance` 是否有数据。任务生成依赖这些分析结果。
+
+### AI 助手只返回配置提示
+
+说明后端没有配置 Dify：
+
+```powershell
+$env:DIFY_BASE_URL="https://api.dify.ai/v1"
+$env:DIFY_API_KEY="app-xxxx"
+```
+
+配置后重启后端。
+
+## 验证命令
+
+```powershell
+# 后端测试
+cd backend
+mvn "-Dmaven.repo.local=.m2/repository" test
+
+# 前端构建
+cd frontend
+npm run build
+
+# 验证单视频复盘接口
+Invoke-RestMethod -Uri "http://localhost:8080/api/analysis/videos/BV1s3LA64ErQ/detail" -Method Get
+```
+
+## 安全说明
+
+- 不要把真实数据库密码、Dify API Key 或其它密钥提交到 Git。
+- 生产环境建议通过环境变量或密钥管理系统配置敏感信息。
+- `placeholder-data.sql` 只用于演示，不代表真实业务数据。
