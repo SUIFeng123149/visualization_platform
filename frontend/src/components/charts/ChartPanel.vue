@@ -1,5 +1,5 @@
 <template>
-  <article class="panel">
+  <article class="panel chart-panel">
     <div class="panel-header">
       <div>
         <div class="panel-title">{{ title }}</div>

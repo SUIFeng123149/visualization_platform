@@ -1,5 +1,5 @@
 <template>
-  <article class="panel">
+  <article class="panel recommendation-panel">
     <div class="panel-header">
       <div>
         <div class="panel-title">运营动作建议</div>

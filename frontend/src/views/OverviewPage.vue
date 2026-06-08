@@ -1,67 +1,68 @@
 <template>
-  <section class="overview-columns">
-    <div class="stack">
-      <ChartPanel title="播放量 / 互动量动态趋势" description="用于观察评论、弹幕和情感随时间变化的节奏，周期由右上角日期筛选控制。">
-        <template #actions>
-          <el-segmented v-model="trendMode" :options="['日', '周', '月']" />
-        </template>
-        <TrendChart :mode="trendMode" :data="sentimentTrend" />
-      </ChartPanel>
+  <ChartPanel class="overview-trend-panel" title="播放量 / 互动量动态趋势" description="用于观察评论、弹幕和情感随时间变化的节奏，周期由右上角日期筛选控制。">
+    <template #actions>
+      <el-segmented v-model="trendMode" :options="['日', '周', '月']" />
+    </template>
+    <TrendChart :mode="trendMode" :data="sentimentTrend" />
+  </ChartPanel>
 
-      <ChartPanel title="弹幕时间轴高峰点" description="散点大小代表同一时间段弹幕密度，用来定位视频高潮点。点击下方高能卡片可进入视频复盘。">
-        <DanmakuScatterChart :data="danmakuTimeline" />
-        <InsightCards :items="dynamicInsightCards" />
-      </ChartPanel>
+  <section class="overview-chart-grid">
+    <ChartPanel title="弹幕时间轴高峰点" description="散点大小代表同一时间段弹幕密度，用来定位视频高潮点。点击下方高能卡片可进入视频复盘。">
+      <DanmakuScatterChart :data="danmakuTimeline" />
+      <InsightCards :items="dynamicInsightCards" />
+    </ChartPanel>
 
-      <VideoTable v-model:keyword="keyword" :videos="filteredVideos" />
-    </div>
+    <ChartPanel title="评论情感占比" description="快速判断当前评论区口碑结构；没有评论情感样本的视频不会计算正向占比。">
+      <SentimentPieChart :data="videoSentiments" />
+    </ChartPanel>
 
-    <div class="stack">
-      <DataQualityPanel :quality="dataQuality" />
-
-      <AiInsightPanel
-        title="AI解读当前总览"
-        description="读取当前筛选后的视频、情感、关键词、弹幕高峰和数据质量，生成页面级分析结论。"
-        mode="overview-insight"
-        :context="overviewAiContext"
-        :prompts="overviewPrompts"
-      />
-
-      <article class="panel anomaly-panel">
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">异常检测中心</div>
-            <div class="panel-desc">自动识别热度、互动、情感和弹幕中的优先关注对象。</div>
-          </div>
-        </div>
-        <div class="anomaly-list">
-          <article
-            v-for="item in anomalyInsights"
-            :key="item.title"
-            class="anomaly-item"
-            :class="`anomaly-${item.type}`"
-            @click="openAnomaly(item)"
-          >
-            <div>
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.text }}</p>
-            </div>
-            <el-tag :type="item.type">{{ item.level }}</el-tag>
-          </article>
-        </div>
-      </article>
-
-      <ChartPanel title="评论情感占比" description="快速判断当前评论区口碑结构；没有评论情感样本的视频不会计算正向占比。">
-        <SentimentPieChart :data="videoSentiments" />
-      </ChartPanel>
-
-      <ChartPanel title="UP主能力雷达" description="对比创作者的播放、热度、口碑和互动能力，避免只按播放量判断。">
-        <UpRadarChart :data="upPerformance" />
-      </ChartPanel>
-
-      <RecommendationPanel :items="globalInsights.length ? globalInsights : recommendations" />
-    </div>
+    <ChartPanel title="UP主能力雷达" description="对比创作者的播放、热度、口碑和互动能力，避免只按播放量判断。">
+      <UpRadarChart :data="upPerformance" />
+    </ChartPanel>
   </section>
+
+  <section class="overview-ops-grid">
+    <DataQualityPanel :quality="dataQuality" />
+
+    <AiInsightPanel
+      title="AI解读当前总览"
+      description="读取当前筛选后的视频、情感、关键词、弹幕高峰和数据质量，生成页面级分析结论。"
+      mode="overview-insight"
+      :context="overviewAiContext"
+      :prompts="overviewPrompts"
+    />
+
+    <article class="panel anomaly-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">异常检测中心</div>
+          <div class="panel-desc">自动识别热度、互动、情感和弹幕中的优先关注对象。</div>
+        </div>
+      </div>
+      <div class="anomaly-list">
+        <article
+          v-for="item in anomalyInsights"
+          :key="item.title"
+          class="anomaly-item"
+          :class="`anomaly-${item.type}`"
+          @click="openAnomaly(item)"
+        >
+          <div>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.text }}</p>
+          </div>
+          <el-tag :type="item.type">{{ item.level }}</el-tag>
+        </article>
+      </div>
+    </article>
+  </section>
+
+  <VideoTable v-model:keyword="keyword" :videos="filteredVideos" />
+
+  <RecommendationPanel
+    class="overview-actions-panel"
+    :items="globalInsights.length ? globalInsights : recommendations"
+  />
 </template>
 
 <script setup>

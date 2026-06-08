@@ -10,31 +10,35 @@
       </el-tag>
     </div>
 
-    <div class="quality-stats">
-      <div>
-        <b>{{ quality.visibleVideoCount }}</b>
-        <span>当前命中视频</span>
-      </div>
-      <div>
-        <b>{{ quality.fallbackCategoryCount }}</b>
-        <span>规则推断分区</span>
-      </div>
-      <div>
-        <b>{{ quality.missingSentimentCount }}</b>
-        <span>缺少情感样本</span>
-      </div>
-      <div>
-        <b>{{ quality.commentSampleCount }}</b>
-        <span>评论样本数</span>
-      </div>
+    <div class="quality-primary">
+      <span>当前命中视频</span>
+      <strong>{{ quality.visibleVideoCount }}</strong>
+      <small>共 {{ quality.videoCount }} 个热度样本</small>
     </div>
 
-    <ul v-if="quality.warnings.length" class="quality-warnings">
-      <li v-for="warning in quality.warnings" :key="warning">{{ warning }}</li>
-    </ul>
-    <p v-else class="quality-ok">当前筛选范围内数据链路完整，图表可按现有口径解读。</p>
+    <div class="quality-body">
+      <div class="quality-stats">
+        <div class="quality-stat-row">
+          <span>规则推断分区</span>
+          <b>{{ quality.fallbackCategoryCount }}</b>
+        </div>
+        <div class="quality-stat-row">
+          <span>缺少情感样本</span>
+          <b>{{ quality.missingSentimentCount }}</b>
+        </div>
+        <div class="quality-stat-row">
+          <span>评论样本数</span>
+          <b>{{ quality.commentSampleCount }}</b>
+        </div>
+      </div>
 
-    <small v-if="quality.lastRefreshedAt">最近刷新：{{ quality.lastRefreshedAt }}</small>
+      <ul v-if="quality.warnings.length" class="quality-warnings">
+        <li v-for="warning in quality.warnings" :key="warning">{{ warning }}</li>
+      </ul>
+      <p v-else class="quality-ok">当前筛选范围内数据链路完整，图表可按现有口径解读。</p>
+    </div>
+
+    <small v-if="quality.lastRefreshedAt" class="quality-refresh-time">最近刷新：{{ quality.lastRefreshedAt }}</small>
   </article>
 </template>
 

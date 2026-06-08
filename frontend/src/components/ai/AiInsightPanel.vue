@@ -1,5 +1,5 @@
 <template>
-  <article class="panel ai-insight-panel">
+  <article class="panel ai-insight-panel" :class="{ 'ai-insight-has-answer': answer || loading }">
     <div class="panel-header">
       <div>
         <div class="panel-title">{{ title }}</div>

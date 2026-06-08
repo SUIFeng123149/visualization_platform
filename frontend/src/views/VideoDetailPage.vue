@@ -1,8 +1,13 @@
 <template>
   <section v-loading="loading" class="detail-page">
     <div class="detail-hero">
-      <div>
-        <el-button link type="primary" @click="router.back()">返回</el-button>
+      <div class="detail-hero-main">
+        <button class="detail-back-button" type="button" @click="goBack">
+          <el-icon>
+            <ArrowLeft />
+          </el-icon>
+          <span>返回视频列表</span>
+        </button>
         <h2>{{ detail?.video?.title || '视频复盘' }}</h2>
         <p>{{ detail?.video?.bvid }} · {{ detail?.video?.upName || '--' }} · {{ detail?.video?.category || '未分类' }}</p>
       </div>
@@ -305,6 +310,14 @@ function scoreByRank(rankNo) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
+}
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+  router.push({ name: 'video' })
 }
 
 function formatVideoTime(value) {
