@@ -1127,10 +1127,24 @@ select {
   border-color: var(--primary-soft);
 }
 
+.overview-ops-grid .anomaly-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100%;
+}
+
 .anomaly-list {
   display: grid;
   gap: 10px;
   padding: 14px 16px 16px;
+}
+
+.overview-ops-grid .anomaly-list {
+  min-height: 0;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 14px 14px;
+  overflow: hidden;
 }
 
 .anomaly-item {
@@ -1146,16 +1160,29 @@ select {
   transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
 }
 
+.overview-ops-grid .anomaly-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  min-height: 0;
+  padding: 10px 12px;
+}
+
 .anomaly-item:hover {
   border-color: var(--primary-soft);
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
+.anomaly-item > div {
+  min-width: 0;
+}
+
 .anomaly-item strong {
   display: block;
   color: var(--text);
   font-size: 13px;
+  line-height: 1.35;
 }
 
 .anomaly-item p {
@@ -1163,6 +1190,22 @@ select {
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.6;
+}
+
+.overview-ops-grid .anomaly-item p {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.overview-ops-grid .anomaly-item .el-tag {
+  flex: none;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .anomaly-danger {
@@ -2165,6 +2208,19 @@ select {
   .quality-body {
     max-height: none;
     overflow-y: visible;
+  }
+
+  .overview-ops-grid .anomaly-panel {
+    min-height: 0;
+  }
+
+  .overview-ops-grid .anomaly-list {
+    grid-template-rows: none;
+    overflow: visible;
+  }
+
+  .overview-ops-grid .anomaly-item p {
+    display: block;
   }
 
   .detail-hero {
