@@ -837,6 +837,169 @@ select {
   font-family: var(--font-mono);
 }
 
+/* ===== Data Collector ===== */
+.collector-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 14px;
+}
+
+.collector-form {
+  padding: 18px;
+}
+
+.collector-source-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.collector-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.collector-inline-grid .el-select {
+  width: 100%;
+}
+
+.collector-option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.collector-option-grid .el-input-number {
+  width: 100%;
+}
+
+.collector-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 2px 0 14px;
+}
+
+.collector-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.collector-help {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 18px;
+}
+
+.collector-help div {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.collector-help strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.collector-help span {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.collector-result-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 18px 0;
+}
+
+.collector-result-grid div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.collector-result-grid span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.collector-result-grid strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: break-all;
+}
+
+.collector-detail-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+
+.collector-detail-body > div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.collector-detail-title {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.collector-detail-body p,
+.collector-detail-body pre {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.collector-detail-body pre {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.collector-log {
+  max-height: 360px;
+  margin: 0;
+  padding: 16px 18px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #0F172A;
+  color: #E2E8F0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 /* ===== AI Assistant ===== */
 .ai-layout {
   display: grid;
@@ -2099,6 +2262,7 @@ select {
   .overview-hero-grid,
   .overview-chart-grid,
   .overview-ops-grid,
+  .collector-layout,
   .video-summary-grid,
   .analysis-grid,
   .detail-grid,
@@ -2180,6 +2344,10 @@ select {
   .metric-grid,
   .insights,
   .platform-grid,
+  .collector-option-grid,
+  .collector-inline-grid,
+  .collector-result-grid,
+  .collector-detail-body,
   .compare-summary,
   .analysis-card-grid,
   .recommend-list {
@@ -2259,6 +2427,10 @@ select {
 
   .chat-input .el-button {
     width: 100%;
+  }
+
+  .collector-actions {
+    display: grid;
   }
 
   .chat-message {

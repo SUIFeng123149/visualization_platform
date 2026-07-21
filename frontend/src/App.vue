@@ -26,7 +26,7 @@
           class="export-button"
           type="success"
           :icon="Download"
-          :disabled="activeModule === 'aiAssistant'"
+          :disabled="['aiAssistant', 'collector'].includes(activeModule)"
           @click="handleExportReport"
         >
           {{ exportMeta.buttonText }}
@@ -88,6 +88,7 @@ const moduleCopy = {
   comment: ['评论洞察', '分析评论情感结构和负面样本，服务舆情处理与用户反馈归因。'],
   creator: ['UP主画像', '横向比较创作者能力，识别高热度账号、口碑短板和合作优先级。'],
   task: ['任务中心', '把数据发现转成运营动作，沉淀可执行的分析工作流。'],
+  collector: ['数据采集', '配置 B 站公开数据采集任务，按热门、首页、UP 主或关键词抓取视频、评论和弹幕。'],
   dataSource: ['数据监控', '监控各层数据表的数据量、更新时间和可访问状态，保证图表可信。'],
   reportCenter: ['报表中心', '沉淀报表生成历史，统一管理导出记录和后续下载链路。'],
   anomalyRule: ['规则管理', '配置异常检测阈值，为热度、情感、互动和弹幕预警提供规则基础。'],
@@ -102,6 +103,7 @@ const exportCopy = {
   comment: ['评论专项报表', '导出评论情感趋势、情感占比和负面评论样本。', '导出评论专项'],
   creator: ['UP主专项报表', '导出 UP 主表现排行和能力评估数据。', '导出 UP主专项'],
   task: ['运营任务报表', '导出基于数据库分析结果自动生成的运营动作建议。', '导出任务专项'],
+  collector: ['数据采集任务', '采集任务产物为本地 CSV/JSONL 文件，暂不纳入 Excel 导出。', '无需导出'],
   dataSource: ['数据监控报表', '导出数据源状态、数据量和同步健康情况。', '导出监控报表'],
   reportCenter: ['报表历史报表', '导出当前报表中心记录。', '导出报表历史'],
   anomalyRule: ['异常规则报表', '导出当前异常检测规则配置。', '导出规则配置'],
@@ -160,6 +162,7 @@ const moduleFilterConfig = computed(() => {
     comment: { showChannel: false, showPeriod: true },
     creator: { showChannel: false, showPeriod: false },
     task: { showChannel: false, showPeriod: false },
+    collector: { showChannel: false, showPeriod: false },
     dataSource: { showChannel: false, showPeriod: false },
     reportCenter: { showChannel: false, showPeriod: false },
     anomalyRule: { showChannel: false, showPeriod: false },
@@ -206,7 +209,7 @@ const moduleMetrics = computed(() => {
     ]
   }
 
-  if (['dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
+  if (['collector', 'dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
     return []
   }
 
@@ -253,6 +256,10 @@ async function buildReportSheets(moduleKey) {
 
   if (moduleKey === 'task') {
     return withReportContext(await buildTaskSheets(), moduleKey)
+  }
+
+  if (moduleKey === 'collector') {
+    return []
   }
 
   if (moduleKey === 'dataSource') {

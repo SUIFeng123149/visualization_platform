@@ -41,6 +41,11 @@ const routes = [
     component: () => import('@/views/TaskPage.vue'),
   },
   {
+    path: '/collector',
+    name: 'collector',
+    component: () => import('@/views/DataCollectorPage.vue'),
+  },
+  {
     path: '/data-sources',
     name: 'dataSource',
     component: () => import('@/views/DataSourcePage.vue'),

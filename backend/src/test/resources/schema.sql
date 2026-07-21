@@ -9,6 +9,7 @@ drop table if exists ads_video_sentiment;
 drop table if exists ads_video_heat_rank;
 drop table if exists ops_task_status;
 drop table if exists ops_task;
+drop table if exists collector_task;
 
 create table ads_video_heat_rank (
     bvid varchar(32) primary key,
