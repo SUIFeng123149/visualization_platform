@@ -13,6 +13,7 @@ drop table if exists collector_task;
 drop table if exists fact_text_analysis;
 drop table if exists fact_interaction;
 drop table if exists fact_content_metric_snapshot;
+drop table if exists metric_dictionary;
 drop table if exists dim_content;
 drop table if exists dim_account;
 drop table if exists dim_platform;

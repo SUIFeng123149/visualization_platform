@@ -14,6 +14,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import org.springframework.cache.CacheManager;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.validation.annotation.Validated;
@@ -30,6 +31,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/api/analysis")
+@ConditionalOnProperty(prefix = "analytics.legacy", name = "enabled", havingValue = "true")
 @Deprecated(since = "0.2.0", forRemoval = false)
 public class AnalysisController {
 

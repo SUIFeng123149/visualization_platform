@@ -1,6 +1,6 @@
 # Multi-platform Video Analytics API
 
-Spring Boot RESTful API for platform-neutral video analytics. Legacy Bilibili endpoints remain available during migration.
+Spring Boot RESTful API for platform-neutral video analytics. Legacy Bilibili endpoints are disabled by default.
 
 ## Run
 
@@ -55,13 +55,6 @@ mvn -o test
 - `GET /api/v2/analytics/comments/negative?platform=youku&page=1&pageSize=10`
 - `GET /api/v2/accounts/performance?platform=bilibili`
 
-- `GET /api/analysis/videos/heat-rank?limit=10`
-- `GET /api/analysis/videos/sentiment`
-- `GET /api/analysis/sentiment/trend?startDate=2026-05-01&endDate=2026-06-01`
-- `GET /api/analysis/danmaku/timeline?bvid=BV001`
-- `GET /api/analysis/keywords?dimensionType=global&dimensionValue=all&limit=30`
-- `GET /api/analysis/ups/performance?limit=10`
-- `GET /api/analysis/comments/negative?bvid=BV001&limit=20`
 - `GET /actuator/health`
 
 ## MySQL Schema
@@ -74,9 +67,9 @@ Use these scripts for your real MySQL database:
 
 `placeholder-data.sql` contains placeholder rows only. Replace them with your real CSV imported data or edit the values manually.
 
-Run `migration_v2_unified.sql` after `schema.sql` for every local database. The default UI uses `/api/v2` and requires the unified tables; the legacy `/api/analysis` endpoints remain available only for Bilibili ADS compatibility.
+Run `migration_v2_unified.sql` after `schema.sql` for every local database. The default UI uses `/api/v2` and requires the unified tables.
 
-`/api/analysis/**`, `ads_*`, and `dwd_*` are deprecated compatibility surfaces. New features must use `/api/v2`, `dim_content`, `fact_content_metric_snapshot`, and `fact_interaction` with `content_id` as the business key.
+`/api/analysis/**`, `ads_*`, and `dwd_*` are deprecated compatibility surfaces. New features must use `/api/v2`, `dim_content`, `fact_content_metric_snapshot`, and `fact_interaction` with `content_id` as the business key. Set `ANALYTICS_LEGACY_ENABLED=true` only when operating an existing Bilibili ADS deployment during migration.
 
 The automated tests still use H2 under the `test` profile only:
 

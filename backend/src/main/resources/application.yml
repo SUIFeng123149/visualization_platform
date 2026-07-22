@@ -45,6 +45,8 @@ logging:
     org.springframework.jdbc.core: INFO
 
 analytics:
+  legacy:
+    enabled: ${ANALYTICS_LEGACY_ENABLED:false}
   cache:
     refresh-interval-minutes: 5
   dify:

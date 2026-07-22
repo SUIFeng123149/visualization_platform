@@ -30,6 +30,12 @@ class ContentControllerTest {
     }
 
     @Test
+    void legacyAnalysisEndpointsAreDisabledByDefault() throws Exception {
+        mockMvc.perform(get("/api/analysis/videos/heat-rank"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void contentsSupportPlatformFilterAndNullableMetrics() throws Exception {
         mockMvc.perform(get("/api/v2/contents").param("platform", "douyin"))
                 .andExpect(status().isOk())
