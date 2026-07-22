@@ -25,6 +25,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -120,6 +121,9 @@ public class ContentRepository {
 
     public List<MetricComparisonDto> findMetricComparison(String metricKey, String platform, String contentType) {
         String expression = metricExpression(metricKey);
+        if (expression == null) {
+            return findExtraMetricComparison(metricKey, platform, contentType);
+        }
         String sql = """
                 select c.platform_code, count(distinct c.content_id) as content_count,
                        count(%1$s) as available_count, avg(%1$s) as average_value,
@@ -144,6 +148,32 @@ public class ContentRepository {
                         nullableDouble(rs, "min_value"), nullableDouble(rs, "max_value")
                 ))
                 .list();
+    }
+
+    /** Connector-specific values are queried only by the standalone metric explorer. */
+    private List<MetricComparisonDto> findExtraMetricComparison(String metricKey, String platform, String contentType) {
+        Map<String, MetricAccumulator> accumulators = new LinkedHashMap<>();
+        jdbcClient.sql("""
+                        select c.platform_code, m.extra_metrics
+                        from dim_content c
+                        left join fact_content_metric_snapshot m on m.snapshot_id = (
+                            select latest.snapshot_id from fact_content_metric_snapshot latest
+                            where latest.content_id = c.content_id
+                            order by latest.captured_at desc, latest.snapshot_id desc limit 1
+                        )
+                        where (:platform is null or c.platform_code = :platform)
+                          and (:contentType is null or c.content_type = :contentType)
+                        order by c.platform_code, c.content_id
+                        """)
+                .param("platform", blankToNull(platform))
+                .param("contentType", blankToNull(contentType))
+                .query((rs, rowNum) -> new ExtraMetricRow(rs.getString("platform_code"), rs.getString("extra_metrics")))
+                .list()
+                .forEach(row -> accumulators.computeIfAbsent(row.platformCode(), ignored -> new MetricAccumulator())
+                        .add(readExtraMetric(row.extraMetrics(), metricKey)));
+        return accumulators.entrySet().stream()
+                .map(entry -> entry.getValue().toDto(metricKey, entry.getKey()))
+                .toList();
     }
 
     public List<ContentSummaryDto> findContents(String platform, String contentType, String keyword,
@@ -609,8 +639,57 @@ public class ContentRepository {
                     + " + coalesce(m.share_count, 0) + coalesce(m.favorite_count, 0)"
                     + " + coalesce(m.coin_count, 0) + coalesce(m.danmaku_count, 0))"
                     + " * 1.0 / nullif(m.view_count, 0)";
-            default -> throw new IllegalArgumentException("不支持快照聚合的指标: " + metricKey);
+            default -> null;
         };
+    }
+
+    private Double readExtraMetric(String json, String metricKey) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            Object value = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {}).get(metricKey);
+            if (value instanceof Number number) {
+                return finiteNumber(number.doubleValue());
+            }
+            if (value instanceof String text) {
+                return finiteNumber(Double.parseDouble(text));
+            }
+        } catch (Exception ignored) {
+            // Optional connector data is unavailable when malformed.
+        }
+        return null;
+    }
+
+    private static Double finiteNumber(double value) {
+        return Double.isFinite(value) ? value : null;
+    }
+
+    private record ExtraMetricRow(String platformCode, String extraMetrics) {
+    }
+
+    private static final class MetricAccumulator {
+        private long contentCount;
+        private long availableCount;
+        private double sum;
+        private Double min;
+        private Double max;
+
+        private void add(Double value) {
+            contentCount++;
+            if (value == null) {
+                return;
+            }
+            availableCount++;
+            sum += value;
+            min = min == null ? value : Math.min(min, value);
+            max = max == null ? value : Math.max(max, value);
+        }
+
+        private MetricComparisonDto toDto(String metricKey, String platformCode) {
+            return new MetricComparisonDto(metricKey, platformCode, contentCount, availableCount,
+                    availableCount == 0 ? null : sum / availableCount, min, max);
+        }
     }
 
     private Map<String, Boolean> readCapabilities(String json) {

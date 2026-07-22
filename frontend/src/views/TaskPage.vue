@@ -39,7 +39,6 @@
             @update:model-value="updateStatus(item.taskId, $event)"
           />
           <el-button v-if="item.contentId" link type="primary" @click="openContent(item.contentId)">查看复盘</el-button>
-          <el-button v-else-if="item.bvid" link type="primary" @click="openLegacyVideo(item.bvid)">查看旧版复盘</el-button>
         </div>
       </article>
 
@@ -85,11 +84,11 @@ const taskPrompts = [
 
 onMounted(() => {
   loadTasks()
-  window.addEventListener('bililens:refresh-tasks', loadTasks)
+  window.addEventListener('video-analytics:refresh-tasks', loadTasks)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('bililens:refresh-tasks', loadTasks)
+  window.removeEventListener('video-analytics:refresh-tasks', loadTasks)
 })
 
 async function loadTasks() {
@@ -127,10 +126,6 @@ async function updateStatus(taskId, status) {
 
 function openContent(contentId) {
   router.push({ name: 'contentDetail', params: { contentId }, query: { from: 'task' } })
-}
-
-function openLegacyVideo(bvid) {
-  router.push({ name: 'contents', query: { keyword: bvid, legacy: 'bvid', from: 'task' } })
 }
 
 function sourceLabel(source) {

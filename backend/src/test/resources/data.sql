@@ -27,17 +27,19 @@ insert into dim_content (content_id, platform_code, external_content_id, content
 update dim_content set parent_content_id = 3 where content_id = 4;
 
 insert into fact_content_metric_snapshot
-(content_id, captured_at, view_count, like_count, comment_count, share_count, favorite_count, danmaku_count, coin_count, platform_heat_score, normalized_heat_score) values
-(1, '2026-05-26 10:00:00', 188000, 13200, 3600, 1000, 7800, 9200, 4200, 85920, 0.92),
-(2, '2026-05-26 10:00:00', 250000, 18000, 2400, 3200, 5000, null, null, 91000, 0.88),
-(3, '2026-05-26 10:00:00', 800000, null, 12000, 900, 21000, null, null, 93000, 0.95),
-(4, '2026-05-26 10:00:00', 320000, 6000, 4200, 320, 8000, null, null, 72000, 0.81),
-(5, '2026-05-26 10:00:00', 280000, 5200, 3600, 280, 7200, null, null, 68000, 0.78);
+(content_id, captured_at, view_count, like_count, comment_count, share_count, favorite_count, danmaku_count, coin_count, extra_metrics, platform_heat_score, normalized_heat_score) values
+(1, '2026-05-26 10:00:00', 188000, 13200, 3600, 1000, 7800, 9200, 4200, '{"completion_events": 510}', 85920, 0.92),
+(2, '2026-05-26 10:00:00', 250000, 18000, 2400, 3200, 5000, null, null, '{"completion_events": 730}', 91000, 0.88),
+(3, '2026-05-26 10:00:00', 800000, null, 12000, 900, 21000, null, null, null, 93000, 0.95),
+(4, '2026-05-26 10:00:00', 320000, 6000, 4200, 320, 8000, null, null, '{"completion_events": "425"}', 72000, 0.81),
+(5, '2026-05-26 10:00:00', 280000, 5200, 3600, 280, 7200, null, null, '{"completion_events": 365}', 68000, 0.78);
 
 insert into metric_dictionary (metric_key, display_name, unit, scope, definition, comparable) values
 ('view_count', '播放量', 'count', 'content', '平台返回的累计播放次数', 0),
 ('interaction_rate', '互动率', 'ratio', 'content', '互动总量除以播放量', 1),
 ('normalized_heat_score', '归一化热度', 'percentile', 'cross_platform', '同类内容的相对热度', 1);
+insert into metric_dictionary (metric_key, display_name, unit, scope, definition, comparable) values
+('completion_events', 'Completion events', 'count', 'content', 'Connector-provided completion event count.', 0);
 
 insert into fact_interaction
 (interaction_id, content_id, platform_code, external_interaction_id, interaction_type, external_user_id, user_name, text, like_count, video_time_seconds, occurred_at, captured_at, batch_id, raw_attributes) values

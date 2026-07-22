@@ -108,8 +108,8 @@ class TaskStatusControllerTest {
     private void insertTask(String taskId, Long contentId, String platformCode, String externalContentId) {
         jdbcClient.sql("""
                         insert into ops_task
-                        (task_id, title, level, type, text, content_id, platform_code, external_content_id, bvid, source, sort_no, is_active)
-                        values (:taskId, '测试任务', '高优先级', 'warning', '测试说明', :contentId, :platformCode, :externalContentId, 'BV003', 'test', 1, 1)
+                        (task_id, title, level, type, text, content_id, platform_code, external_content_id, source, sort_no, is_active)
+                        values (:taskId, '测试任务', '高优先级', 'warning', '测试说明', :contentId, :platformCode, :externalContentId, 'test', 1, 1)
                         """)
                 .param("taskId", taskId)
                 .param("contentId", contentId)

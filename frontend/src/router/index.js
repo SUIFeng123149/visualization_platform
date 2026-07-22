@@ -6,24 +6,6 @@ const routes = [
     redirect: '/contents',
   },
   {
-    path: '/overview',
-    redirect: { name: 'contents' },
-  },
-  {
-    path: '/video',
-    redirect: { name: 'contents' },
-  },
-  {
-    path: '/video/:bvid',
-    redirect: (to) => ({
-      name: 'contents',
-      query: {
-        keyword: String(to.params.bvid || ''),
-        legacy: 'bvid',
-      },
-    }),
-  },
-  {
     path: '/contents',
     name: 'contents',
     component: () => import('@/views/ContentPage.vue'),
@@ -42,10 +24,6 @@ const routes = [
     path: '/metrics',
     name: 'metrics',
     component: () => import('@/views/MetricExplorerPage.vue'),
-  },
-  {
-    path: '/danmaku',
-    redirect: '/contents',
   },
   {
     path: '/comment',
@@ -72,6 +50,8 @@ const routes = [
     name: 'dataSource',
     component: () => import('@/views/DataSourcePage.vue'),
   },
+  { path: '/platforms', name: 'platformConfig', component: () => import('@/views/PlatformConfigPage.vue') },
+  { path: '/metric-config', name: 'metricConfig', component: () => import('@/views/MetricConfigPage.vue') },
   {
     path: '/reports',
     name: 'reportCenter',

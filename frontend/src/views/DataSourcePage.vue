@@ -49,7 +49,7 @@ const statuses = ref([])
 
 const summaryCards = computed(() => {
   const healthy = statuses.value.filter((item) => item.status === 'healthy').length
-  const empty = statuses.value.filter((item) => item.status === 'empty').length
+  const empty = statuses.value.filter((item) => item.status === 'empty' || item.status === 'stale').length
   const missing = statuses.value.filter((item) => item.status === 'missing').length
   const totalRows = statuses.value.reduce((sum, item) => sum + item.rowCount, 0)
   return [
@@ -75,12 +75,12 @@ async function loadStatuses() {
 
 function statusType(status) {
   if (status === 'healthy') return 'success'
-  if (status === 'empty') return 'warning'
+  if (status === 'empty' || status === 'stale') return 'warning'
   return 'danger'
 }
 
 function statusLabel(status) {
-  return { healthy: '正常', empty: '空表', missing: '不可访问' }[status] ?? status
+  return { healthy: '正常', empty: '空表', stale: '已过期', missing: '不可访问' }[status] ?? status
 }
 
 function formatDateTime(value) {

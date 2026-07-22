@@ -1,6 +1,6 @@
 <template>
-  <div v-if="hasData" ref="chartEl" class="chart small" role="img" aria-label="UP主能力雷达图"></div>
-  <div v-else class="empty-state small">暂无UP主表现数据</div>
+  <div v-if="hasData" ref="chartEl" class="chart small" role="img" aria-label="账号能力雷达图"></div>
+  <div v-else class="empty-state small">暂无账号表现数据</div>
 </template>
 
 <script setup>

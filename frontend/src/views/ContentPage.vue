@@ -130,8 +130,8 @@ onMounted(async () => {
   }
 })
 
-onMounted(() => window.addEventListener('bililens:refresh-unified', loadContents))
-onBeforeUnmount(() => window.removeEventListener('bililens:refresh-unified', loadContents))
+onMounted(() => window.addEventListener('video-analytics:refresh-unified', loadContents))
+onBeforeUnmount(() => window.removeEventListener('video-analytics:refresh-unified', loadContents))
 
 watch(selectedPlatform, () => {
   const nextType = selectedPlatform.value === 'all' ? contentType.value : contentType.value

@@ -6,8 +6,14 @@ import com.bililens.analytics.platform.dto.AnomalyRuleUpdateRequest;
 import com.bililens.analytics.platform.dto.DataSourceStatusDto;
 import com.bililens.analytics.platform.dto.ReportCreateRequest;
 import com.bililens.analytics.platform.dto.ReportHistoryDto;
+import com.bililens.analytics.platform.dto.PlatformConfigDto;
+import com.bililens.analytics.platform.dto.PlatformConfigRequest;
+import com.bililens.analytics.platform.dto.MetricConfigDto;
+import com.bililens.analytics.platform.dto.MetricConfigRequest;
+import com.bililens.analytics.platform.dto.PasswordConfirmRequest;
 import com.bililens.analytics.platform.service.PlatformService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +21,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -33,6 +41,25 @@ public class PlatformController {
     public ApiResponse<List<DataSourceStatusDto>> getDataSourceStatuses() {
         return ApiResponse.ok(platformService.getDataSourceStatuses());
     }
+
+    @GetMapping("/platforms")
+    public ApiResponse<List<PlatformConfigDto>> getPlatformConfigs() { return ApiResponse.ok(platformService.getPlatformConfigs()); }
+
+    @PutMapping("/platforms")
+    public ApiResponse<PlatformConfigDto> savePlatformConfig(@Valid @RequestBody PlatformConfigRequest request) { return ApiResponse.ok(platformService.savePlatformConfig(request)); }
+
+    @DeleteMapping("/platforms/{platformCode}")
+    public ApiResponse<Void> deletePlatformConfig(@PathVariable @Size(max = 32) String platformCode,
+                                                   @Valid @RequestBody PasswordConfirmRequest request) {
+        platformService.deletePlatformConfig(platformCode, request.password());
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/metrics")
+    public ApiResponse<List<MetricConfigDto>> getMetricConfigs() { return ApiResponse.ok(platformService.getMetricConfigs()); }
+
+    @PutMapping("/metrics/{metricKey}")
+    public ApiResponse<MetricConfigDto> saveMetricConfig(@PathVariable @Size(max = 64) String metricKey, @Valid @RequestBody MetricConfigRequest request) { return ApiResponse.ok(platformService.saveMetricConfig(metricKey, request)); }
 
     @GetMapping("/reports")
     public ApiResponse<List<ReportHistoryDto>> getReportHistory() {

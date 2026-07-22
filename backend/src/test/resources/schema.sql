@@ -57,6 +57,7 @@ create table fact_content_metric_snapshot (
     favorite_count bigint,
     danmaku_count bigint,
     coin_count bigint,
+    extra_metrics clob,
     platform_heat_score double,
     normalized_heat_score double
 );
@@ -229,7 +230,6 @@ create table ops_task (
     content_id bigint,
     platform_code varchar(32),
     external_content_id varchar(255),
-    bvid varchar(32),
     source varchar(64) default 'system' not null,
     sort_no int default 100 not null,
     is_active smallint default 1 not null,

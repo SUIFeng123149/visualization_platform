@@ -11,7 +11,6 @@ public record TaskDto(
         Long contentId,
         String platformCode,
         String externalContentId,
-        String bvid,
         String source,
         int sortNo,
         String status,

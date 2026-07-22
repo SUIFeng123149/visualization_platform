@@ -184,7 +184,7 @@ const dateShortcuts = [
 ]
 
 onMounted(async () => {
-  window.addEventListener('bililens:refresh-comments', refreshData)
+  window.addEventListener('video-analytics:refresh-comments', refreshData)
   try {
     await loadPlatforms()
     await refreshInteractionTypes()
@@ -197,7 +197,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('bililens:refresh-comments', refreshData)
+  window.removeEventListener('video-analytics:refresh-comments', refreshData)
 })
 
 watch(selectedPlatform, async () => {

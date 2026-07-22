@@ -1,80 +1,50 @@
-# Multi-platform Video Analytics API
+# 通用视频数据分析 API
 
-Spring Boot RESTful API for platform-neutral video analytics. Legacy Bilibili endpoints are disabled by default.
+Spring Boot 后端服务，提供平台无关的视频内容、互动、情感、指标、账号、任务和采集能力。
 
-## Run
+## 启动
 
-```bash
+```powershell
 cd backend
 mvn spring-boot:run
 ```
 
-The API starts on `http://localhost:8080`.
-
-Production runtime uses MySQL. Configure the connection with environment variables:
-
-```bash
-MYSQL_URL="jdbc:mysql://localhost:3306/bilibili_analysis?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
-MYSQL_USERNAME="root"
-MYSQL_PASSWORD="your_password"
-```
-
-`MYSQL_USERNAME` defaults to `root`; the development password remains `123456` for compatibility and should be overridden outside source control.
-
-Windows PowerShell example:
+默认端口为 `8080`。现有本地环境默认使用 `bilibili_analysis`；新建通用库请设置以下环境变量：
 
 ```powershell
-$env:MYSQL_URL="jdbc:mysql://localhost:3306/bilibili_analysis?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
+$env:ANALYTICS_DB_NAME="video_analytics"
 $env:MYSQL_USERNAME="root"
-$env:MYSQL_PASSWORD="your_password"
+$env:MYSQL_PASSWORD="你的密码"
 mvn spring-boot:run
 ```
 
-The project-level `.mvn/settings.xml` stores dependencies in `backend/.m2/repository`, avoiding an unwritable global Maven repository. Use `mvn -o spring-boot:run` when dependencies are already cached and the network is unavailable.
+也可用 `MYSQL_URL` 完整覆盖 JDBC 地址。
 
-## Test
-
-```bash
-mvn -o test
-```
-
-## Endpoints
+## 主要接口
 
 - `GET /api/v2/platforms`
-- `GET /api/v2/contents?platform=bilibili&contentType=video`
+- `GET /api/v2/contents`
+- `GET /api/v2/contents/page`
 - `GET /api/v2/contents/{contentId}`
-- `GET /api/v2/contents/{contentId}/children`
-- `GET /api/v2/contents/{contentId}/interactions?type=comment`
+- `GET /api/v2/contents/{contentId}/interactions`
 - `GET /api/v2/contents/{contentId}/sentiment`
-- `GET /api/v2/contents/{contentId}/timeline?type=danmaku`
-- `GET /api/v2/analytics/trends?platform=douyin`
-- `GET /api/v2/analytics/keywords?platform=iqiyi`
-- `GET /api/v2/analytics/comments/summary?platform=douyin&type=comment`
-- `GET /api/v2/analytics/comments/types?platform=douyin&startDate=2026-05-01&endDate=2026-05-31`
-- `GET /api/v2/analytics/comments/trends?platform=iqiyi&type=review&startDate=2026-05-01&endDate=2026-05-31`
-- `GET /api/v2/analytics/comments/negative?platform=youku&page=1&pageSize=10`
-- `GET /api/v2/accounts/performance?platform=bilibili`
-
+- `GET /api/v2/contents/{contentId}/timeline`
+- `GET /api/v2/analytics/metric-definitions`
+- `GET /api/v2/analytics/metric-comparison`
+- `GET /api/v2/analytics/comments/summary`
+- `GET /api/v2/accounts/performance`
+- `GET /api/tasks`
+- `GET /api/platform/data-sources/status`
 - `GET /actuator/health`
 
-## MySQL Schema
+## 数据库
 
-Use these scripts for your real MySQL database:
+新部署使用 `sql/mysql/schema_v2.sql` 创建 v2 通用模型。旧版 B 站 ADS/DWD 表仅支持通过数据管道迁移到 v2，不再由 API 提供查询服务。
 
-- `sql/mysql/schema.sql`
-- `sql/mysql/placeholder-data.sql`
-- `sql/mysql/migration_v2_unified.sql`
+## 测试
 
-`placeholder-data.sql` contains placeholder rows only. Replace them with your real CSV imported data or edit the values manually.
+```powershell
+mvn clean test
+```
 
-Run `migration_v2_unified.sql` after `schema.sql` for every local database. The default UI uses `/api/v2` and requires the unified tables.
-
-`/api/analysis/**`, `ads_*`, and `dwd_*` are deprecated compatibility surfaces. New features must use `/api/v2`, `dim_content`, `fact_content_metric_snapshot`, and `fact_interaction` with `content_id` as the business key. Set `ANALYTICS_LEGACY_ENABLED=true` only when operating an existing Bilibili ADS deployment during migration.
-
-The automated tests still use H2 under the `test` profile only:
-
-- `src/test/resources/application-test.yml`
-
-The H2 fixtures model Bilibili comments/danmaku, a Douyin short video, and an iQIYI series/episode. Run `mvn -o test` to validate the full v2 logic before real tables are available.
-- `src/test/resources/schema.sql`
-- `src/test/resources/data.sql`
+测试使用 H2 内存数据库；生产环境使用 MySQL。

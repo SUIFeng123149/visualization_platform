@@ -103,7 +103,7 @@ public class TaskStatusService {
     private static TaskDto task(String taskId, String title, String level, String type, String text,
                                 ContentSummaryDto content, int sortNo) {
         return new TaskDto(taskId, title, level, type, text, content.contentId(), content.platformCode(),
-                content.externalContentId(), null, "auto", sortNo, "todo", null,
+                content.externalContentId(), "auto", sortNo, "todo", null,
                 LocalDateTime.now(), LocalDateTime.now());
     }
 

@@ -5,42 +5,137 @@ import com.bililens.analytics.platform.dto.AnomalyRuleUpdateRequest;
 import com.bililens.analytics.platform.dto.DataSourceStatusDto;
 import com.bililens.analytics.platform.dto.ReportCreateRequest;
 import com.bililens.analytics.platform.dto.ReportHistoryDto;
+import com.bililens.analytics.platform.dto.PlatformConfigDto;
+import com.bililens.analytics.platform.dto.PlatformConfigRequest;
+import com.bililens.analytics.platform.dto.MetricConfigDto;
+import com.bililens.analytics.platform.dto.MetricConfigRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
 public class PlatformRepository {
 
     private final JdbcClient jdbcClient;
+    private final ObjectMapper objectMapper;
 
-    public PlatformRepository(JdbcClient jdbcClient) {
+    public PlatformRepository(JdbcClient jdbcClient, ObjectMapper objectMapper) {
         this.jdbcClient = jdbcClient;
+        this.objectMapper = objectMapper;
+    }
+
+    public List<PlatformConfigDto> findPlatformConfigs() {
+        return jdbcClient.sql("select platform_code, display_name, connector_name, capabilities_json, enabled from dim_platform order by platform_code")
+                .query((rs, rowNum) -> new PlatformConfigDto(rs.getString("platform_code"), rs.getString("display_name"),
+                        rs.getString("connector_name"), capabilities(rs.getString("capabilities_json")), rs.getBoolean("enabled")))
+                .list();
+    }
+
+    public PlatformConfigDto upsertPlatformConfig(PlatformConfigRequest request) {
+        String json = writeCapabilities(request.capabilities());
+        int updated = jdbcClient.sql("""
+                        update dim_platform set display_name=:displayName, connector_name=:connectorName,
+                        capabilities_json=:capabilities, enabled=:enabled where platform_code=:platformCode
+                        """)
+                .param("platformCode", request.platformCode()).param("displayName", request.displayName())
+                .param("connectorName", request.connectorName()).param("capabilities", json).param("enabled", request.enabled()).update();
+        if (updated == 0) {
+            jdbcClient.sql("""
+                            insert into dim_platform (platform_code, display_name, connector_name, capabilities_json, enabled)
+                            values (:platformCode, :displayName, :connectorName, :capabilities, :enabled)
+                            """)
+                    .param("platformCode", request.platformCode()).param("displayName", request.displayName())
+                    .param("connectorName", request.connectorName()).param("capabilities", json).param("enabled", request.enabled()).update();
+        }
+        return findPlatformConfigs().stream().filter(item -> item.platformCode().equals(request.platformCode())).findFirst().orElseThrow();
+    }
+
+    public void deletePlatformConfig(String platformCode) {
+        Long accounts = jdbcClient.sql("select count(*) from dim_account where platform_code=:platformCode")
+                .param("platformCode", platformCode).query(Long.class).single();
+        Long contents = jdbcClient.sql("select count(*) from dim_content where platform_code=:platformCode")
+                .param("platformCode", platformCode).query(Long.class).single();
+        if ((accounts != null && accounts > 0) || (contents != null && contents > 0)) {
+            throw new IllegalArgumentException("该平台仍有关联账号或内容，请先停用或迁移数据");
+        }
+        int deleted = jdbcClient.sql("delete from dim_platform where platform_code=:platformCode")
+                .param("platformCode", platformCode).update();
+        if (deleted == 0) throw new IllegalArgumentException("平台不存在: " + platformCode);
+    }
+
+    public List<MetricConfigDto> findMetricConfigs() {
+        return jdbcClient.sql("select metric_key, display_name, unit, scope, definition, comparable from metric_dictionary order by display_name")
+                .query((rs, rowNum) -> new MetricConfigDto(rs.getString("metric_key"), rs.getString("display_name"),
+                        rs.getString("unit"), rs.getString("scope"), rs.getString("definition"), rs.getBoolean("comparable"))).list();
+    }
+
+    public MetricConfigDto updateMetricConfig(String metricKey, MetricConfigRequest request) {
+        int updated = jdbcClient.sql("""
+                        update metric_dictionary set display_name=:displayName, unit=:unit, scope=:scope,
+                        definition=:definition, comparable=:comparable where metric_key=:metricKey
+                        """)
+                .param("metricKey", metricKey).param("displayName", request.displayName()).param("unit", request.unit())
+                .param("scope", request.scope()).param("definition", request.definition()).param("comparable", request.comparable()).update();
+        if (updated == 0) throw new IllegalArgumentException("指标不存在: " + metricKey);
+        return findMetricConfigs().stream().filter(item -> item.metricKey().equals(metricKey)).findFirst().orElseThrow();
     }
 
     public List<DataSourceStatusDto> findDataSourceStatuses() {
-        return List.of(
-                tableStatus("dim_platform", "平台维表（v2）", "DIM", null),
-                tableStatus("dim_account", "发布账号维表（v2）", "DIM", null),
-                tableStatus("dim_content", "统一内容维表（v2）", "DIM", null),
-                tableStatus("fact_content_metric_snapshot", "内容指标快照（v2）", "DWD", "captured_at"),
-                tableStatus("fact_interaction", "统一互动明细（v2）", "DWD", "captured_at"),
-                tableStatus("fact_text_analysis", "统一文本分析（v2）", "DWS", "created_at"),
-                tableStatus("dwd_comment_clean", "清洗评论明细", "DWD", "created_at"),
-                tableStatus("dwd_danmaku_clean", "清洗弹幕明细", "DWD", "created_at"),
-                tableStatus("dws_text_analysis_detail", "文本分析明细", "DWS", "created_at"),
-                tableStatus("ads_video_heat_rank", "视频热度排行", "ADS", null),
-                tableStatus("ads_video_sentiment", "视频情感统计", "ADS", null),
-                tableStatus("ads_sentiment_by_date", "情感趋势汇总", "ADS", "stat_date"),
-                tableStatus("ads_danmaku_timeline", "弹幕时间轴", "ADS", null),
-                tableStatus("ads_keyword_top", "关键词排行", "ADS", null),
-                tableStatus("ads_up_performance", "UP主表现汇总", "ADS", null),
+        List<DataSourceStatusDto> statuses = new ArrayList<>(List.of(
+                tableStatus("dim_platform", "平台目录（v2）", "DIM", null),
+                tableStatus("dim_account", "发布账号（v2）", "DIM", null),
+                tableStatus("dim_content", "统一内容（v2）", "DIM", null),
+                tableStatus("fact_content_metric_snapshot", "内容指标快照（v2）", "FACT", "captured_at"),
+                tableStatus("fact_interaction", "统一互动明细（v2）", "FACT", "captured_at"),
+                tableStatus("fact_text_analysis", "文本分析结果（v2）", "FACT", "created_at"),
+                tableStatus("metric_dictionary", "指标字典（v2）", "CONFIG", "created_at"),
+                tableStatus("collector_task", "采集任务", "OPS", "updated_at"),
                 tableStatus("ops_task", "运营任务", "OPS", "updated_at")
-        );
+        ));
+        statuses.addAll(findPlatformIngestionStatuses());
+        return statuses;
+    }
+
+    private List<DataSourceStatusDto> findPlatformIngestionStatuses() {
+        try {
+            return jdbcClient.sql("""
+                            select p.platform_code, p.display_name, p.connector_name,
+                                   count(distinct c.content_id) as content_count,
+                                   count(s.snapshot_id) as snapshot_count,
+                                   max(s.captured_at) as latest_at
+                            from dim_platform p
+                            left join dim_content c on c.platform_code = p.platform_code
+                            left join fact_content_metric_snapshot s on s.content_id = c.content_id
+                            where p.enabled = 1
+                            group by p.platform_code, p.display_name, p.connector_name
+                            order by p.platform_code
+                            """)
+                    .query((rs, rowNum) -> {
+                        long contents = rs.getLong("content_count");
+                        long snapshots = rs.getLong("snapshot_count");
+                        LocalDateTime latestAt = toLocalDateTime(rs.getTimestamp("latest_at"));
+                        String status = snapshots == 0 ? "empty"
+                                : latestAt != null && latestAt.isBefore(LocalDateTime.now().minusDays(7)) ? "stale"
+                                : "healthy";
+                        String message = "connector=" + rs.getString("connector_name")
+                                + ", contents=" + contents + ", snapshots=" + snapshots;
+                        return new DataSourceStatusDto(
+                                "platform:" + rs.getString("platform_code"),
+                                rs.getString("display_name") + " ingestion",
+                                "PLATFORM", snapshots, latestAt, status, message
+                        );
+                    })
+                    .list();
+        } catch (DataAccessException error) {
+            return List.of();
+        }
     }
 
     public List<ReportHistoryDto> findReportHistory() {
@@ -232,6 +327,23 @@ public class PlatformRepository {
 
     private static String defaultText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private java.util.Map<String, Boolean> capabilities(String json) {
+        try {
+            return json == null || json.isBlank() ? java.util.Map.of()
+                    : objectMapper.readValue(json, new TypeReference<java.util.Map<String, Boolean>>() {});
+        } catch (Exception error) {
+            throw new IllegalArgumentException("平台能力配置不是合法 JSON", error);
+        }
+    }
+
+    private String writeCapabilities(java.util.Map<String, Boolean> capabilities) {
+        try {
+            return objectMapper.writeValueAsString(capabilities == null ? java.util.Map.of() : capabilities);
+        } catch (Exception error) {
+            throw new IllegalArgumentException("平台能力配置无法保存", error);
+        }
     }
 
     private static LocalDateTime toLocalDateTime(Timestamp timestamp) {

@@ -1,18 +1,13 @@
 <template>
   <el-container class="app-shell">
-    <AppSidebar
-      :items="navItems"
-      :active-key="activeModule"
-      @change="navigate"
-    />
-
+    <AppSidebar :items="navItems" :active-key="activeModule" @change="navigate" />
     <el-main class="main">
       <DashboardHeader
         :filters="filters"
         :title="moduleMeta.title"
         :description="moduleMeta.description"
-        :show-channel-filter="moduleFilterConfig.showChannel"
-        :show-period-filter="moduleFilterConfig.showPeriod"
+        :show-channel-filter="false"
+        :show-period-filter="false"
         :platforms="platforms"
         :platform="selectedPlatform"
         :loading-platforms="loadingPlatforms"
@@ -30,7 +25,7 @@
           class="export-button"
           type="success"
           :icon="Download"
-          :disabled="['overview', 'contents', 'metrics', 'creator', 'aiAssistant', 'collector'].includes(activeModule)"
+          :disabled="!exportMeta.enabled"
           @click="handleExportReport"
         >
           {{ exportMeta.buttonText }}
@@ -38,14 +33,13 @@
       </div>
 
       <MetricGrid :metrics="moduleMetrics" />
-
       <router-view />
     </el-main>
   </el-container>
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -53,482 +47,199 @@ import AppSidebar from '@/components/layout/AppSidebar.vue'
 import DashboardHeader from '@/components/layout/DashboardHeader.vue'
 import MetricGrid from '@/components/metrics/MetricGrid.vue'
 import { navItems } from '@/data/dashboard'
-import { fetchVideoDetail } from '@/api/analysis'
 import { refreshTasks } from '@/api/tasks'
-import { createReportHistory, fetchAnomalyRules, fetchDataSourceStatuses, fetchReportHistory } from '@/api/platform'
+import { createReportHistory, fetchAnomalyRules, fetchDataSourceStatuses, fetchMetricConfigs, fetchPlatformConfigs, fetchReportHistory } from '@/api/platform'
+import { fetchAccountPerformance, fetchContent, fetchMetricComparison, fetchMetricDefinitions, fetchPagedContents } from '@/api/content'
+import { fetchCollectorTasks } from '@/api/collector'
 import { exportExcelWorkbook } from '@/utils/exportExcel'
 import { usePlatformContext } from '@/composables/usePlatformContext'
 import { useUnifiedAnalytics } from '@/composables/useUnifiedAnalytics'
 import { useCommentInsights } from '@/composables/useCommentInsights'
-import {
-  average,
-  formatCompact,
-  formatPercent,
-  getInteractions,
-  useDashboardData,
-} from '@/composables/useDashboardData'
-
-const {
-  activeModule,
-  filters,
-  heatRank,
-  visibleHeatRank,
-  videoSentiments,
-  upPerformance,
-  keywords,
-  negativeComments,
-  sentimentTrend,
-  danmakuHotspots,
-  dataQuality,
-  handleRefresh: handleDashboardRefresh,
-  handleFiltersChange: handleDashboardFiltersChange,
-} = useDashboardData({ autoLoad: false })
-
-const { platforms, selectedPlatform, loadingPlatforms, loadPlatforms } = usePlatformContext()
-const { loadUnifiedAnalytics } = useUnifiedAnalytics()
-const {
-  summary: commentSummary,
-  trends: commentTrends,
-  negativeItems: commentNegativeItems,
-} = useCommentInsights()
-loadPlatforms().catch(() => {})
 
 const router = useRouter()
 const route = useRoute()
+const filters = reactive({ channel: 'all', period: '30d' })
+const { platforms, selectedPlatform, loadingPlatforms, loadPlatforms } = usePlatformContext()
+const { loadUnifiedAnalytics } = useUnifiedAnalytics()
+const { summary: commentSummary } = useCommentInsights()
+loadPlatforms().catch(() => {})
 
-const validPeriods = new Set(['7d', '30d', '90d'])
+const activeModule = computed(() => ['contentDetail', 'contentDanmaku'].includes(route.name) ? 'contents' : route.name || 'contents')
+const platformModules = new Set(['contents', 'metrics', 'comment', 'creator', 'collector', 'dataSource'])
 
-watch(
-  () => route.query.platform,
-  (platform) => {
-    const next = typeof platform === 'string' && platform.trim() ? platform : 'all'
-    if (selectedPlatform.value !== next) selectedPlatform.value = next
-  },
-  { immediate: true },
-)
-
-watch(
-  () => [route.query.channel, route.query.period],
-  ([channel, period]) => {
-    const nextChannel = typeof channel === 'string' && channel.trim() ? channel : 'all'
-    const nextPeriod = validPeriods.has(period) ? period : '30d'
-    if (filters.channel !== nextChannel) filters.channel = nextChannel
-    if (filters.period !== nextPeriod) filters.period = nextPeriod
-  },
-  { immediate: true },
-)
+watch(() => route.query.platform, (platform) => {
+  const next = typeof platform === 'string' && platform.trim() ? platform : 'all'
+  if (selectedPlatform.value !== next) selectedPlatform.value = next
+}, { immediate: true })
 
 const moduleCopy = {
-  overview: ['数据总览', '聚合视频热度、弹幕、评论情感和 UP 主表现，快速判断整体增长状态。'],
-  video: ['视频分析', '围绕单个视频拆解播放、互动、热度和口碑，定位爆款与待优化内容。'],
-  contents: ['内容分析', '统一查看抖音、哔哩哔哩、爱奇艺和优酷的内容表现与可比指标。'],
-  metrics: ['指标对比', '按统一指标字典查看各平台最新内容快照；平台特有指标仅在平台内比较。'],
-  danmaku: ['弹幕分析', '用时间轴识别观众集中反应片段，辅助剪辑、复盘和内容解释。'],
-  comment: ['评论洞察', '分析评论情感结构和负面样本，服务舆情处理与用户反馈归因。'],
-  creator: ['发布账号', '横向比较创作者、频道和发行方的内容规模与归一化热度。'],
-  task: ['任务中心', '把数据发现转成运营动作，沉淀可执行的分析工作流。'],
-  collector: ['数据采集', '按平台连接器配置受控数据源、内容目标和所需能力；不支持的能力不会进入采集请求。'],
-  dataSource: ['数据监控', '监控各层数据表的数据量、更新时间和可访问状态，保证图表可信。'],
-  reportCenter: ['报表中心', '沉淀报表生成历史，统一管理导出记录和后续下载链路。'],
-  anomalyRule: ['规则管理', '配置异常检测阈值，为热度、情感、互动和弹幕预警提供规则基础。'],
-  aiAssistant: ['AI助手', '接入 Dify 应用，辅助解释指标、生成复盘建议和排查数据问题。'],
+  contents: ['内容分析', '查看已接入视频平台的内容表现与互动数据。'],
+  metrics: ['指标对比', '基于统一指标字典对比各平台最新内容快照。'],
+  comment: ['互动洞察', '分析评论、回复、剧评及其情感覆盖情况。'],
+  creator: ['账号表现', '比较创作者、频道和发行方的内容表现。'],
+  task: ['任务中心', '跟踪由分析结果生成的运营工作。'],
+  collector: ['数据采集', '创建受平台连接器约束的采集任务。'],
+  dataSource: ['数据监控', '监控 v2 数据覆盖率、新鲜度和采集健康状态。'],
+  platformConfig: ['平台管理', '管理平台连接器、启用状态和数据能力。'],
+  metricConfig: ['指标管理', '管理指标中文名称、口径、单位和跨平台可比性。'],
+  reportCenter: ['报表中心', '查看已导出的报表历史。'],
+  anomalyRule: ['规则管理', '配置分析预警阈值。'],
+  aiAssistant: ['AI 助手', '使用已配置的助手分析平台数据。'],
 }
 
 const exportCopy = {
-  overview: ['统一总览报表', 'v2 统一报表等待真实 ADS 表落地后开放。', '暂不可导出'],
-  contents: ['统一内容报表', '统一内容导出将在 v2 ADS 导入完成后开放。', '暂不可导出'],
-  metrics: ['统一指标对比报表', '指标对比当前用于交互分析，导出将在指标快照治理完成后开放。', '暂不可导出'],
-  video: ['视频专项报表', '导出视频热度排行和情感统计，用于内容复盘。', '导出视频专项'],
-  videoDetail: ['单视频复盘报表', '导出当前视频的基础指标、情感、弹幕、关键词、负面评论和运营建议。', '导出当前视频'],
-  danmaku: ['弹幕专项报表', '导出当前视频的弹幕高峰时间点、弹幕数、情感和关键词。', '导出弹幕专项'],
-  comment: ['评论专项报表', '导出评论情感趋势、情感占比和负面评论样本。', '导出评论专项'],
-  creator: ['发布账号报表', 'v2 账号报表等待真实 ADS 表落地后开放。', '暂不可导出'],
-  task: ['运营任务报表', '导出基于数据库分析结果自动生成的运营动作建议。', '导出任务专项'],
-  collector: ['数据采集任务', '采集任务产物为本地 CSV/JSONL 文件，暂不纳入 Excel 导出。', '无需导出'],
-  dataSource: ['数据监控报表', '导出数据源状态、数据量和同步健康情况。', '导出监控报表'],
-  reportCenter: ['报表历史报表', '导出当前报表中心记录。', '导出报表历史'],
-  anomalyRule: ['异常规则报表', '导出当前异常检测规则配置。', '导出规则配置'],
-  aiAssistant: ['AI助手对话', 'AI 对话内容暂不纳入 Excel 导出。', '无需导出'],
+  contents: ['内容分析报表', '导出当前筛选范围内的内容快照。', '导出报表', true],
+  metrics: ['指标对比报表', '导出统一指标定义与当前对比结果。', '导出报表', true],
+  comment: ['互动洞察报表', '导出当前 v2 互动分析结果。', '导出报表', true],
+  creator: ['创作者画像报表', '导出当前平台范围内的账号表现。', '导出报表', true],
+  task: ['任务报表', '导出当前运营任务。', '导出报表', true],
+  collector: ['采集任务报表', '导出采集任务及其处理状态。', '导出报表', true],
+  dataSource: ['数据监控报表', '导出 v2 数据源与平台采集状态。', '导出报表', true],
+  reportCenter: ['报表历史', '导出报表历史记录。', '导出报表', true],
+  anomalyRule: ['规则配置', '导出预警规则。', '导出报表', true],
+  platformConfig: ['平台配置报表', '导出已配置的平台、连接器和能力。', '导出报表', true],
+  metricConfig: ['指标配置报表', '导出统一指标定义和可比性配置。', '导出报表', true],
+  default: ['导出', '当前页面暂不提供报表导出。', '暂不可导出', false],
 }
 
-const metricDefinitions = [
-  ['总播放量', '当前筛选视频播放量求和，来源 ads_video_heat_rank.view_count。'],
-  ['互动总量', '点赞、投币、收藏、评论、弹幕五项互动求和。'],
-  ['平均情感', '视频情感均值，来源 ads_video_sentiment.avg_sentiment。'],
-  ['最高热度', '当前筛选范围内 heat_score 最高的视频热度分。'],
-  ['正向占比', '评论情感正向数 / 评论样本总数；缺少样本时显示暂无。'],
-]
+const moduleMeta = computed(() => {
+  const [title, description] = moduleCopy[activeModule.value] ?? moduleCopy.contents
+  return { title, description }
+})
 
-watch(
-  () => route.name,
-  (name) => {
-    const moduleName = name === 'videoDetail' ? 'video' : ['contentDetail', 'contentDanmaku'].includes(name) ? 'contents' : name
-    if (moduleName && moduleName !== activeModule.value) {
-      activeModule.value = moduleName
-    }
-  },
-  { immediate: true },
-)
+const exportMeta = computed(() => {
+  const [title, description, buttonText, enabled] = exportCopy[activeModule.value] ?? exportCopy.default
+  return { title, description, buttonText, enabled }
+})
+
+const moduleMetrics = computed(() => {
+  if (activeModule.value !== 'comment') return []
+  const total = commentSummary.value.interactionCount || 0
+  const analyzed = commentSummary.value.analyzedCount || 0
+  const coverage = total ? analyzed / total : 0
+  return [
+    metric('互动总量', total.toLocaleString('zh-CN'), '评论 / 回复 / 剧评', '当前筛选范围总量', 'up'),
+    metric('已分析样本', analyzed.toLocaleString('zh-CN'), `${(coverage * 100).toFixed(1)}%`, '情感分析覆盖率', coverage >= 0.8 ? 'up' : 'warn'),
+    metric('平均情感', commentSummary.value.averageSentiment == null ? '--' : Number(commentSummary.value.averageSentiment).toFixed(3), '', '统一情感分数', 'up'),
+    metric('负向样本', (commentSummary.value.negativeCount || 0).toLocaleString('zh-CN'), '', '待重点复盘', commentSummary.value.negativeCount ? 'warn' : 'up'),
+  ]
+})
+
+function metric(label, value, delta, note, status) {
+  return { label, value, delta, note, status, description: note }
+}
 
 function navigate(key) {
-  activeModule.value = key
-  const unifiedModules = ['overview', 'contents', 'metrics', 'comment', 'creator', 'collector', 'dataSource']
-  const query = unifiedModules.includes(key) && selectedPlatform.value !== 'all'
-    ? { platform: selectedPlatform.value }
-    : undefined
-  if (!unifiedModules.includes(key)) selectedPlatform.value = 'all'
+  const query = platformModules.has(key) && selectedPlatform.value !== 'all' ? { platform: selectedPlatform.value } : undefined
   router.push({ name: key, query })
 }
 
 async function handleHeaderRefresh() {
   if (activeModule.value === 'task') {
-    window.dispatchEvent(new CustomEvent('bililens:refresh-tasks'))
+    window.dispatchEvent(new CustomEvent('video-analytics:refresh-tasks'))
     return
   }
-
   if (activeModule.value === 'comment') {
-    window.dispatchEvent(new CustomEvent('bililens:refresh-comments'))
+    window.dispatchEvent(new CustomEvent('video-analytics:refresh-comments'))
     return
   }
-
-  if (['contents', 'metrics', 'creator', 'dataSource', 'aiAssistant'].includes(activeModule.value)) {
-    await loadUnifiedAnalytics()
-    window.dispatchEvent(new CustomEvent('bililens:refresh-unified'))
-    return
-  }
-
-  await handleDashboardRefresh()
+  await loadUnifiedAnalytics()
+  window.dispatchEvent(new CustomEvent('video-analytics:refresh-unified'))
 }
 
-async function handleFiltersChange(nextFilters) {
-  await handleDashboardFiltersChange(nextFilters)
-  router.replace({
-    query: {
-      ...route.query,
-      channel: nextFilters.channel === 'all' ? undefined : nextFilters.channel,
-      period: nextFilters.period === '30d' ? undefined : nextFilters.period,
-    },
-  })
+function handleFiltersChange(nextFilters) {
+  Object.assign(filters, nextFilters)
 }
 
 function handlePlatformChange(value) {
   selectedPlatform.value = value
-  const unifiedModules = ['overview', 'contents', 'metrics', 'comment', 'creator', 'collector', 'dataSource']
-  if (value !== 'all' && !unifiedModules.includes(activeModule.value)) {
-    router.push({ name: 'contents', query: { platform: value, contentType: 'all' } })
+  if (value !== 'all' && !platformModules.has(activeModule.value)) {
+    router.push({ name: 'contents', query: { platform: value } })
     return
   }
-  router.replace({ query: { ...route.query, ...(value === 'all' ? { platform: undefined } : { platform: value }) } })
-}
-
-const moduleMeta = computed(() => {
-  const [title, description] = moduleCopy[activeModule.value] ?? moduleCopy.overview
-  return { title, description }
-})
-
-const exportMeta = computed(() => {
-  const key = route.name === 'videoDetail' ? 'videoDetail' : activeModule.value
-  const [title, description, buttonText] = exportCopy[key] ?? exportCopy.overview
-  return { title, description, buttonText }
-})
-
-const moduleFilterConfig = computed(() => {
-  const config = {
-    overview: { showChannel: true, showPeriod: true },
-    video: { showChannel: false, showPeriod: false },
-    contents: { showChannel: false, showPeriod: false },
-    metrics: { showChannel: false, showPeriod: false },
-    danmaku: { showChannel: false, showPeriod: false },
-    comment: { showChannel: false, showPeriod: false },
-    creator: { showChannel: false, showPeriod: false },
-    task: { showChannel: false, showPeriod: false },
-    collector: { showChannel: false, showPeriod: false },
-    dataSource: { showChannel: false, showPeriod: false },
-    reportCenter: { showChannel: false, showPeriod: false },
-    anomalyRule: { showChannel: false, showPeriod: false },
-    aiAssistant: { showChannel: false, showPeriod: false },
-  }
-  return config[activeModule.value] ?? config.overview
-})
-
-const moduleMetrics = computed(() => {
-  const totalViews = visibleHeatRank.value.reduce((sum, item) => sum + item.viewCount, 0)
-  const totalInteraction = visibleHeatRank.value.reduce((sum, item) => sum + getInteractions(item), 0)
-  const avgSentiment = average(videoSentiments.value.map((item) => item.avgSentiment))
-  const highestHeat = visibleHeatRank.value[0]?.heatScore ?? 0
-  const currentVideo = heatRank.value[0]
-  const currentVideoSentiment = videoSentiments.value.find((item) => item.bvid === currentVideo?.bvid)
-  const currentVideoInteractions = currentVideo ? getInteractions(currentVideo) : 0
-  const currentVideoInteractionRate = currentVideo?.viewCount > 0 ? currentVideoInteractions / currentVideo.viewCount : 0
-
-  if (activeModule.value === 'video') {
-    return [
-      metric('当前视频播放', currentVideo ? formatCompact(currentVideo.viewCount) : '--', currentVideo?.upName ?? '--', '当前热度榜首样本', 'up', '视频分析页默认展示热度榜首视频的单视频指标。'),
-      metric('当前视频互动率', `${(currentVideoInteractionRate * 100).toFixed(1)}%`, formatCompact(currentVideoInteractions), '互动总量/播放量', 'up', '互动总量包含点赞、投币、收藏、评论、弹幕。'),
-      metric('当前视频热度', currentVideo ? Math.round(currentVideo.heatScore).toLocaleString('zh-CN') : '--', currentVideo?.bvid ?? '--', '单视频热度分', 'up', '后端 heat_score 综合播放、互动和弹幕等指标生成。'),
-      metric('当前视频口碑', currentVideoSentiment ? formatPercent(currentVideoSentiment.positiveRatio) : '--', currentVideoSentiment ? `${currentVideoSentiment.totalCount} 条样本` : '暂无样本', '正向占比', 'up', '正向占比来自评论情感统计；没有评论样本时不计算。'),
-    ]
-  }
-
-  if (activeModule.value === 'comment') {
-    const averageSentiment = commentSummary.value.averageSentiment
-    const coverage = commentSummary.value.interactionCount > 0
-      ? commentSummary.value.analyzedCount / commentSummary.value.interactionCount
-      : 0
-    return [
-      metric('互动总量', formatCompact(commentSummary.value.interactionCount), '评论/回复/剧评', '统一互动事实表', 'up', '当前平台和日期范围内的评论类互动总量。'),
-      metric('已分析样本', formatCompact(commentSummary.value.analyzedCount), formatPercent(coverage), '情感覆盖率', coverage >= 0.8 ? 'up' : 'warn', '完成情感模型分析的互动数及其覆盖率。'),
-      metric('平均情感', averageSentiment == null ? '--' : averageSentiment.toFixed(3), averageSentiment != null && averageSentiment >= 0.55 ? '偏正向' : '需关注', '跨平台统一分值', averageSentiment != null && averageSentiment >= 0.55 ? 'up' : 'warn', '当前筛选范围内已分析互动的平均情感分。'),
-      metric('负向样本', formatCompact(commentSummary.value.negativeCount), formatPercent(commentSummary.value.negativeRatio), '待排查', commentSummary.value.negativeCount > 0 ? 'warn' : 'up', '情感标签为 negative 的评论、回复或剧评数量。'),
-    ]
-  }
-
-  if (['overview', 'contents', 'metrics', 'creator', 'collector', 'dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
-    return []
-  }
-
-  return [
-    metric('总播放量', formatCompact(totalViews), `${visibleHeatRank.value.length} 个视频`, '来自热度排行', 'up', metricDefinitions[0][1]),
-    metric('互动总量', formatCompact(totalInteraction), '点赞/投币/收藏', '评论弹幕合计', 'up', metricDefinitions[1][1]),
-    metric('平均情感', avgSentiment.toFixed(3), avgSentiment >= 0.55 ? '偏正向' : '需关注', '按视频均值', avgSentiment >= 0.55 ? 'up' : 'warn', metricDefinitions[2][1]),
-    metric('最高热度', Math.round(highestHeat).toLocaleString('zh-CN'), visibleHeatRank.value[0]?.bvid ?? '--', '当前榜首', 'up', metricDefinitions[3][1]),
-  ]
-})
-
-function metric(label, value, delta, note, status, description) {
-  return { label, value, delta, note, status, description }
+  router.replace({ query: { ...route.query, platform: value === 'all' ? undefined : value } })
 }
 
 async function handleExportReport() {
   try {
-    const moduleKey = route.name === 'videoDetail' ? 'videoDetail' : activeModule.value
-    const sheets = await buildReportSheets(moduleKey)
-    const dataRows = sheets.filter((sheet) => sheet.name !== '报表说明').reduce((sum, sheet) => sum + sheet.rows.length, 0)
-    if (dataRows === 0) {
+    const sheets = await buildReportSheets(activeModule.value)
+    const rows = sheets.reduce((sum, sheet) => sum + sheet.rows.length, 0)
+    if (!rows) {
       ElMessage.warning('暂无可导出的数据')
       return
     }
-    const filename = `BiliLens_${exportMeta.value.title}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    const filename = `视频数据平台-${activeModule.value}-${new Date().toISOString().slice(0, 10)}.xlsx`
     exportExcelWorkbook(filename, sheets)
-    createReportHistory({
-      reportName: exportMeta.value.title,
-      reportType: moduleKey,
-      fileName: filename,
-      rowCount: dataRows,
-      remark: '由页面导出动作自动记录。',
-    }).catch(() => {})
-    ElMessage.success(`${exportMeta.value.title}已导出`)
+    createReportHistory({ reportName: exportMeta.value.title, reportType: activeModule.value, fileName: filename, rowCount: rows, remark: '由 v2 统一界面导出。' }).catch(() => {})
+    ElMessage.success('报表已导出')
   } catch (error) {
-    ElMessage.error(error.message || '导出失败，请稍后重试')
+    ElMessage.error(error.message || '报表导出失败')
   }
 }
 
-async function buildReportSheets(moduleKey) {
-  if (moduleKey === 'videoDetail') {
-    return withReportContext(await buildVideoDetailSheets(route.params.bvid), moduleKey)
+async function buildReportSheets(module) {
+  const platform = selectedPlatform.value === 'all' ? undefined : selectedPlatform.value
+  if (module === 'contents') {
+    if (route.name === 'contentDetail' || route.name === 'contentDanmaku') {
+      const content = await fetchContent(route.params.contentId)
+      return [sheet('内容复盘', ['contentId', 'platformCode', 'externalContentId', 'contentType', 'title', 'accountName', 'category', 'publishedAt', 'viewCount', 'likeCount', 'commentCount', 'danmakuCount', 'normalizedHeatScore', 'metricsCapturedAt'], [content])]
+    }
+    const result = await fetchPagedContents({
+      platform,
+      contentType: route.query.contentType || undefined,
+      keyword: route.query.keyword || undefined,
+      startDate: route.query.startDate || undefined,
+      endDate: route.query.endDate || undefined,
+      page: 1,
+      pageSize: 5000,
+    })
+    return [sheet('内容快照', ['contentId', 'platformCode', 'externalContentId', 'contentType', 'title', 'accountName', 'category', 'publishedAt', 'viewCount', 'likeCount', 'commentCount', 'danmakuCount', 'normalizedHeatScore', 'metricsCapturedAt'], result.items || [])]
   }
-
-  if (moduleKey === 'task') {
-    return withReportContext(await buildTaskSheets(), moduleKey)
+  if (module === 'metrics') {
+    const definitions = await fetchMetricDefinitions()
+    const comparisonSheets = await Promise.all(definitions.map(async (definition) => sheet(
+      definition.displayName || definition.metricKey,
+      ['platformCode', 'contentCount', 'availableCount', 'averageValue', 'minValue', 'maxValue'],
+      await fetchMetricComparison({ metricKey: definition.metricKey, platform }),
+    )))
+    return [sheet('指标定义', ['metricKey', 'displayName', 'definition', 'unit', 'comparable'], definitions), ...comparisonSheets]
   }
-
-  if (moduleKey === 'collector') {
-    return []
+  if (module === 'comment') {
+    return [sheet('互动汇总', Object.keys(commentSummary.value), [commentSummary.value])]
   }
-
-  if (moduleKey === 'dataSource') {
-    return withReportContext(await buildDataSourceSheets(), moduleKey)
-  }
-
-  if (moduleKey === 'reportCenter') {
-    return withReportContext(await buildReportHistorySheets(), moduleKey)
-  }
-
-  if (moduleKey === 'anomalyRule') {
-    return withReportContext(await buildAnomalyRuleSheets(), moduleKey)
-  }
-
-  if (moduleKey === 'aiAssistant') {
-    return []
-  }
-
-  const videoRankRows = moduleKey === 'video' ? heatRank.value : visibleHeatRank.value
-  const videoBvids = new Set(videoRankRows.map((item) => item.bvid))
-  const videoSentimentRows = ['overview', 'video'].includes(moduleKey)
-    ? videoSentiments.value.filter((item) => videoBvids.has(item.bvid))
-    : videoSentiments.value
-
-  const sheets = {
-    videoRank: sheet('视频热度排行', [
-      ['rankNo', '排名'], ['bvid', 'BVID'], ['title', '标题'], ['upName', 'UP主'], ['category', '分区'],
-      ['viewCount', '播放量'], ['likeCount', '点赞数'], ['coinCount', '投币数'], ['favoriteCount', '收藏数'],
-      ['replyCount', '评论数'], ['danmakuCount', '弹幕数'], ['heatScore', '热度分'], ['interactionCount', '互动总量'],
-    ], videoRankRows.map((item) => ({ ...item, interactionCount: getInteractions(item) }))),
-    videoSentiment: sheet('视频情感统计', [
-      ['bvid', 'BVID'], ['title', '标题'], ['avgSentiment', '平均情感'], ['positiveCount', '正向数'],
-      ['neutralCount', '中性数'], ['negativeCount', '负向数'], ['totalCount', '总数'],
-      ['positiveRatio', '正向占比'], ['negativeRatio', '负向占比'],
-    ], videoSentimentRows),
-    trend: sheet('情感趋势', [
-      ['statDate', '日期'], ['commentCount', '评论数'], ['danmakuCount', '弹幕数'],
-      ['avgSentiment', '平均情感'], ['negativeRatio', '负向占比'],
-    ], sentimentTrend.value),
-    danmaku: sheet('弹幕高峰', [
-      ['bvid', 'BVID'], ['timeText', '时间点'], ['timeBucket', '秒数'],
-      ['danmakuCount', '弹幕数'], ['avgSentiment', '平均情感'], ['topWords', '关键词'],
-    ], danmakuHotspots.value),
-    keywords: sheet('关键词TopN', [
-      ['rankNo', '排名'], ['word', '关键词'], ['wordCount', '出现次数'],
-    ], keywords.value),
-    creator: sheet('UP主表现', [
-      ['upName', 'UP主'], ['videoCount', '视频数'], ['avgViewCount', '平均播放'],
-      ['avgHeatScore', '平均热度'], ['avgSentiment', '平均情感'], ['totalLikeCount', '总点赞'],
-    ], upPerformance.value),
-    negative: sheet('负面评论样本', [
-      ['bvid', 'BVID'], ['rpid', '评论ID'], ['userName', '用户'], ['cleanContent', '评论内容'],
-      ['likeCount', '点赞数'], ['crawledAt', '采集时间'], ['sentimentScore', '情感分'],
-    ], negativeComments.value),
-    commentSummary: sheet('统一互动情感汇总', [
-      ['platformCode', '平台'], ['interactionType', '互动类型'], ['interactionCount', '互动总量'],
-      ['analyzedCount', '已分析数'], ['positiveCount', '正向数'], ['neutralCount', '中性数'],
-      ['negativeCount', '负向数'], ['averageSentiment', '平均情感'], ['positiveRatio', '正向占比'],
-      ['neutralRatio', '中性占比'], ['negativeRatio', '负向占比'],
-    ], [commentSummary.value]),
-    commentTrend: sheet('统一互动情感趋势', [
-      ['statDate', '日期'], ['interactionCount', '互动数'], ['analyzedCount', '已分析数'],
-      ['averageSentiment', '平均情感'], ['negativeRatio', '负向占比'],
-    ], commentTrends.value),
-    commentNegative: sheet('统一负向互动样本', [
-      ['platformCode', '平台'], ['externalContentId', '内容ID'], ['contentTitle', '内容标题'],
-      ['interactionType', '互动类型'], ['userName', '用户'], ['text', '互动内容'],
-      ['likeCount', '点赞数'], ['sentimentScore', '情感分'], ['occurredAt', '发生时间'],
-    ], commentNegativeItems.value),
-  }
-
-  const map = {
-    overview: [sheets.videoRank, sheets.videoSentiment, sheets.trend, sheets.danmaku, sheets.keywords, sheets.creator, sheets.negative],
-    video: [sheets.videoRank, sheets.videoSentiment],
-    danmaku: [sheets.danmaku],
-    comment: [sheets.commentSummary, sheets.commentTrend, sheets.commentNegative],
-    creator: [sheets.creator],
-  }
-  return withReportContext(map[moduleKey] ?? map.overview, moduleKey)
+  if (module === 'creator') return [sheet('账号表现', ['accountId', 'platformCode', 'displayName', 'accountType', 'contentCount', 'totalViewCount', 'totalLikeCount', 'averageNormalizedHeat'], await fetchAccountPerformance({ platform }))]
+  if (module === 'task') return [sheet('运营任务', ['taskId', 'title', 'level', 'type', 'status', 'text', 'contentId', 'platformCode', 'externalContentId', 'source', 'sortNo', 'updatedAt'], await refreshTasks())]
+  if (module === 'collector') return [sheet('采集任务', ['taskId', 'taskName', 'platformCode', 'connectorName', 'targetType', 'status', 'progress', 'rowCount', 'batchId', 'message', 'createdAt', 'updatedAt'], await fetchCollectorTasks())]
+  if (module === 'dataSource') return [sheet('数据源状态', ['tableName', 'displayName', 'layer', 'rowCount', 'latestAt', 'status', 'message'], await fetchDataSourceStatuses())]
+  if (module === 'platformConfig') return [sheet('平台配置', ['platformCode', 'displayName', 'connectorName', 'capabilities', 'enabled', 'updatedAt'], await fetchPlatformConfigs())]
+  if (module === 'metricConfig') return [sheet('指标配置', ['metricKey', 'displayName', 'definition', 'unit', 'comparable', 'enabled', 'updatedAt'], await fetchMetricConfigs())]
+  if (module === 'reportCenter') return [sheet('报表历史', ['id', 'reportName', 'reportType', 'status', 'rowCount', 'fileName', 'remark', 'createdAt'], await fetchReportHistory())]
+  if (module === 'anomalyRule') return [sheet('预警规则', ['ruleKey', 'name', 'metric', 'operator', 'threshold', 'level', 'enabled', 'description', 'updatedAt'], await fetchAnomalyRules())]
+  return []
 }
 
-async function buildTaskSheets() {
-  const tasks = await refreshTasks()
-  return [
-    sheet('运营任务', [
-      ['taskId', '任务ID'], ['title', '任务'], ['level', '优先级'], ['type', '类型'],
-      ['status', '状态'], ['text', '说明/触发规则'], ['contentId', '关联内容ID'], ['platformCode', '平台'],
-      ['externalContentId', '外部内容ID'], ['bvid', '旧版BVID'], ['source', '来源'],
-      ['sortNo', '排序'], ['statusUpdatedAt', '状态更新时间'], ['updatedAt', '任务更新时间'],
-    ], tasks),
-  ]
+function sheet(name, keys, rows) {
+  return { name: String(name).replace(/[\\/:?*\[\]]/g, '_').slice(0, 31) || '数据', columns: keys.map((key) => ({ key, label: columnLabel(key) })), rows: Array.isArray(rows) ? rows : [] }
 }
 
-async function buildDataSourceSheets() {
-  const rows = await fetchDataSourceStatuses()
-  return [
-    sheet('数据源状态', [
-      ['tableName', '表名'], ['displayName', '显示名称'], ['layer', '层级'], ['rowCount', '行数'],
-      ['latestAt', '最近时间'], ['status', '状态'], ['message', '说明'],
-    ], rows),
-  ]
-}
-
-async function buildReportHistorySheets() {
-  const rows = await fetchReportHistory()
-  return [
-    sheet('报表历史', [
-      ['id', 'ID'], ['reportName', '报表名称'], ['reportType', '类型'], ['status', '状态'],
-      ['rowCount', '数据行数'], ['fileName', '文件名'], ['remark', '备注'], ['createdAt', '生成时间'],
-    ], rows),
-  ]
-}
-
-async function buildAnomalyRuleSheets() {
-  const rows = await fetchAnomalyRules()
-  return [
-    sheet('异常规则', [
-      ['ruleKey', '规则Key'], ['name', '规则名称'], ['metric', '指标'], ['operator', '条件'],
-      ['threshold', '阈值'], ['level', '级别'], ['enabled', '启用'], ['description', '说明'], ['updatedAt', '更新时间'],
-    ], rows),
-  ]
-}
-
-async function buildVideoDetailSheets(bvid) {
-  if (!bvid) return []
-
-  const detail = await fetchVideoDetail(bvid)
-  const video = detail.video
-  if (!video) return []
-
-  const interactionCount = getInteractions(video)
-  const interactionRate = video.viewCount > 0 ? interactionCount / video.viewCount : 0
-  const videoRows = [{ ...video, interactionCount, interactionRate }]
-
-  return [
-    sheet('视频基础指标', [
-      ['rankNo', '排名'], ['bvid', 'BVID'], ['title', '标题'], ['upName', 'UP主'], ['category', '分区'],
-      ['viewCount', '播放量'], ['likeCount', '点赞数'], ['coinCount', '投币数'], ['favoriteCount', '收藏数'],
-      ['replyCount', '评论数'], ['danmakuCount', '弹幕数'], ['heatScore', '热度分'], ['interactionCount', '互动总量'],
-      ['interactionRate', '互动率'],
-    ], videoRows),
-    sheet('情感统计', [
-      ['bvid', 'BVID'], ['title', '标题'], ['avgSentiment', '平均情感'], ['positiveCount', '正向数'],
-      ['neutralCount', '中性数'], ['negativeCount', '负向数'], ['totalCount', '评论样本数'],
-      ['positiveRatio', '正向占比'], ['negativeRatio', '负向占比'],
-    ], detail.sentiment ? [detail.sentiment] : []),
-    sheet('弹幕时间轴', [
-      ['bvid', 'BVID'], ['timeText', '时间点'], ['timeBucket', '秒数'], ['danmakuCount', '弹幕数'],
-      ['avgSentiment', '平均情感'], ['topWords', '关键词'],
-    ], (detail.danmakuTimeline ?? []).map((item) => ({ ...item, timeText: formatSeconds(item.timeBucket) }))),
-    sheet('主题关键词', [
-      ['rankNo', '排名'], ['word', '关键词'], ['wordCount', '出现次数'],
-    ], detail.keywords ?? []),
-    sheet('负面评论样本', [
-      ['bvid', 'BVID'], ['rpid', '评论ID'], ['userName', '用户'], ['cleanContent', '评论内容'],
-      ['likeCount', '点赞数'], ['crawledAt', '采集时间'], ['sentimentScore', '情感分'],
-    ], detail.negativeComments ?? []),
-    sheet('运营建议', [
-      ['title', '建议'], ['level', '优先级'], ['type', '类型'], ['reason', '原因'], ['action', '动作'],
-    ], detail.insights ?? []),
-  ]
-}
-
-function withReportContext(sheets, moduleKey) {
-  return [buildContextSheet(moduleKey), ...sheets]
-}
-
-function buildContextSheet(moduleKey) {
-  const [title] = exportCopy[moduleKey] ?? exportCopy.overview
-  const rows = [
-    { item: '报表名称', value: title },
-    { item: '生成时间', value: new Date().toLocaleString('zh-CN', { hour12: false }) },
-    { item: '页面模块', value: moduleCopy[moduleKey === 'videoDetail' ? 'video' : moduleKey]?.[0] ?? moduleCopy.overview[0] },
-    { item: '分区筛选', value: filters.channel === 'all' ? '全部类型' : filters.channel },
-    { item: '趋势周期', value: filters.period },
-    { item: '当前视频数', value: dataQuality.value.visibleVideoCount },
-    { item: '数据质量', value: dataQuality.value.warnings.length ? dataQuality.value.warnings.join('；') : '当前筛选范围内未发现明显缺口' },
-    { item: '任务来源说明', value: moduleKey === 'task' ? '/api/tasks/refresh 自动分析数据库并生成任务' : '非任务报表' },
-    ...metricDefinitions.map(([name, desc]) => ({ item: `口径：${name}`, value: desc })),
-  ]
-  return sheet('报表说明', [['item', '项目'], ['value', '说明']], rows)
-}
-
-function sheet(name, columns, rows) {
+function columnLabel(key) {
   return {
-    name,
-    columns: columns.map(([key, label]) => ({ key, label })),
-    rows,
-  }
-}
-
-function formatSeconds(value) {
-  const secondsValue = Number(value) || 0
-  const minutes = Math.floor(secondsValue / 60)
-  const seconds = String(secondsValue % 60).padStart(2, '0')
-  return `${minutes}:${seconds}`
+    contentId: '内容 ID', externalContentId: '外部内容 ID', contentType: '内容类型', category: '分类', publishedAt: '发布时间',
+    accountId: '账号 ID', accountName: '发布账号', displayName: '显示名称', accountType: '账号类型',
+    viewCount: '播放量', likeCount: '点赞量', commentCount: '评论量', danmakuCount: '弹幕量', normalizedHeatScore: '归一化热度', metricsCapturedAt: '指标时间',
+    totalViewCount: '累计播放量', totalLikeCount: '累计点赞量', averageNormalizedHeat: '平均归一化热度', contentCount: '内容数', availableCount: '有指标内容数', averageValue: '平均值', minValue: '最小值', maxValue: '最大值',
+    metricKey: '指标代码', displayName: '指标名称', definition: '指标口径', unit: '单位', comparable: '可跨平台比较',
+    taskId: '任务 ID', taskName: '任务名称', connectorName: '连接器', targetType: '目标类型', progress: '进度', batchId: '批次号', capabilities: '可用能力',
+    taskId: '任务 ID', title: '标题', level: '优先级', type: '类型', status: '状态', text: '说明',
+    contentId: '内容 ID', platformCode: '平台', externalContentId: '外部内容 ID', source: '来源',
+    sortNo: '排序', updatedAt: '更新时间', tableName: '数据表', displayName: '显示名称',
+    layer: '层级', rowCount: '数据量', latestAt: '最近时间', message: '说明', id: 'ID',
+    reportName: '报表名称', reportType: '报表类型', fileName: '文件名', remark: '备注',
+    createdAt: '创建时间', ruleKey: '规则键', name: '名称', metric: '指标', operator: '条件',
+    threshold: '阈值', enabled: '启用', description: '说明', interactionCount: '互动总量',
+    analyzedCount: '已分析数量', positiveCount: '正向数量', neutralCount: '中性数量',
+    negativeCount: '负向数量', averageSentiment: '平均情感', positiveRatio: '正向占比',
+    neutralRatio: '中性占比', negativeRatio: '负向占比',
+  }[key] ?? key
 }
 </script>

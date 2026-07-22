@@ -36,6 +36,15 @@ class ContentControllerTest {
     }
 
     @Test
+    void dataSourceMonitoringUsesV2TablesAndPlatformIngestionCoverage() throws Exception {
+        mockMvc.perform(get("/api/platform/data-sources/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.tableName == 'fact_content_metric_snapshot')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[?(@.tableName == 'platform:bilibili')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[?(@.tableName == 'ads_video_heat_rank')]").isEmpty());
+    }
+
+    @Test
     void contentsSupportPlatformFilterAndNullableMetrics() throws Exception {
         mockMvc.perform(get("/api/v2/contents").param("platform", "douyin"))
                 .andExpect(status().isOk())
@@ -55,13 +64,23 @@ class ContentControllerTest {
     void metricComparisonStaysOutsideTheContentReviewContract() throws Exception {
         mockMvc.perform(get("/api/v2/analytics/metric-definitions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(3)))
+                .andExpect(jsonPath("$.data", hasSize(4)))
                 .andExpect(jsonPath("$.data[0].metricKey").value("interaction_rate"));
 
         mockMvc.perform(get("/api/v2/analytics/metric-comparison").param("metricKey", "normalized_heat_score"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(4)))
                 .andExpect(jsonPath("$.data[0].metricKey").value("normalized_heat_score"));
+    }
+
+    @Test
+    void metricComparisonSupportsRegisteredConnectorSpecificMetrics() throws Exception {
+        mockMvc.perform(get("/api/v2/analytics/metric-comparison").param("metricKey", "completion_events"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(4)))
+                .andExpect(jsonPath("$.data[0].metricKey").value("completion_events"))
+                .andExpect(jsonPath("$.data[0].availableCount").value(1))
+                .andExpect(jsonPath("$.data[0].averageValue").value(510.0));
     }
 
     @Test

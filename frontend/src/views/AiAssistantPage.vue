@@ -89,7 +89,7 @@ const messages = ref([
   {
     id: 1,
     role: 'assistant',
-    content: '我是 BiliLens 的 AI 数据助手。你可以问我数据口径、异常原因、视频复盘建议、报表摘要或平台建设建议。',
+    content: '我是视频数据平台的 AI 数据助手。你可以问我数据口径、异常原因、视频复盘建议、报表摘要或平台建设建议。',
   },
 ])
 

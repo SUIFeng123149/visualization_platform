@@ -35,7 +35,7 @@ public class TaskStatusRepository {
     public List<TaskDto> findActiveTasks() {
         return jdbcClient.sql("""
                         select t.task_id, t.title, t.level, t.type, t.text, t.content_id, t.platform_code,
-                               t.external_content_id, t.bvid, t.source, t.sort_no,
+                               t.external_content_id, t.source, t.sort_no,
                                coalesce(s.status, 'todo') as status,
                                s.updated_at as status_updated_at,
                                t.created_at, t.updated_at
@@ -53,7 +53,6 @@ public class TaskStatusRepository {
                         rs.getObject("content_id", Long.class),
                         rs.getString("platform_code"),
                         rs.getString("external_content_id"),
-                        rs.getString("bvid"),
                         rs.getString("source"),
                         rs.getInt("sort_no"),
                         rs.getString("status"),
@@ -91,7 +90,6 @@ public class TaskStatusRepository {
                             content_id = :contentId,
                             platform_code = :platformCode,
                             external_content_id = :externalContentId,
-                            bvid = :bvid,
                             source = :source,
                             sort_no = :sortNo,
                             is_active = 1,
@@ -105,7 +103,6 @@ public class TaskStatusRepository {
                 .param("contentId", task.contentId())
                 .param("platformCode", task.platformCode())
                 .param("externalContentId", task.externalContentId())
-                .param("bvid", task.bvid())
                 .param("source", task.source())
                 .param("sortNo", task.sortNo())
                 .param("taskId", task.taskId())
@@ -114,9 +111,9 @@ public class TaskStatusRepository {
         if (updated == 0) {
             jdbcClient.sql("""
                             insert into ops_task
-                            (task_id, title, level, type, text, content_id, platform_code, external_content_id, bvid, source, sort_no, is_active, created_at, updated_at)
+                            (task_id, title, level, type, text, content_id, platform_code, external_content_id, source, sort_no, is_active, created_at, updated_at)
                             values
-                            (:taskId, :title, :level, :type, :text, :contentId, :platformCode, :externalContentId, :bvid, :source, :sortNo, 1, current_timestamp, current_timestamp)
+                            (:taskId, :title, :level, :type, :text, :contentId, :platformCode, :externalContentId, :source, :sortNo, 1, current_timestamp, current_timestamp)
                             """)
                     .param("taskId", task.taskId())
                     .param("title", task.title())
@@ -126,7 +123,6 @@ public class TaskStatusRepository {
                     .param("contentId", task.contentId())
                     .param("platformCode", task.platformCode())
                     .param("externalContentId", task.externalContentId())
-                    .param("bvid", task.bvid())
                     .param("source", task.source())
                     .param("sortNo", task.sortNo())
                     .update();

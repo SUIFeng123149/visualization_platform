@@ -3,7 +3,7 @@
     <div class="brand">
       <div class="brand-mark">BL</div>
       <div>
-        <div class="brand-name">BiliLens</div>
+        <div class="brand-name">视频数据平台</div>
         <div class="brand-sub">内容增长分析台</div>
       </div>
     </div>

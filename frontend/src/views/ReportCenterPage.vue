@@ -106,7 +106,7 @@ async function recordDemoReport() {
     const created = await createReportHistory({
       reportName: '完整数据报表',
       reportType: 'overview',
-      fileName: `BiliLens_完整数据报表_${today}.xlsx`,
+      fileName: `视频数据平台_完整数据报表_${today}.xlsx`,
       rowCount: 0,
       remark: '从报表中心手动记录，可作为报表生成链路验证。',
     })
