@@ -2,6 +2,7 @@ package com.bililens.analytics.ai.service;
 
 import com.bililens.analytics.ai.dto.AiChatRequest;
 import com.bililens.analytics.ai.dto.AiChatResponse;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -31,7 +32,11 @@ public class AiAssistantService {
     private final String baseUrl;
     private final String apiKey;
     private final String defaultUser;
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Executors.newCachedThreadPool(task -> {
+        Thread thread = new Thread(task, "ai-assistant-stream");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public AiAssistantService(
             @Value("${analytics.dify.base-url:}") String baseUrl,
@@ -44,6 +49,11 @@ public class AiAssistantService {
         this.baseUrl = trimTrailingSlash(baseUrl);
         this.apiKey = apiKey;
         this.defaultUser = defaultUser;
+    }
+
+    @PreDestroy
+    void shutdownExecutor() {
+        executor.shutdownNow();
     }
 
     public AiChatResponse chat(AiChatRequest request) {

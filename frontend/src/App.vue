@@ -13,7 +13,11 @@
         :description="moduleMeta.description"
         :show-channel-filter="moduleFilterConfig.showChannel"
         :show-period-filter="moduleFilterConfig.showPeriod"
+        :platforms="platforms"
+        :platform="selectedPlatform"
+        :loading-platforms="loadingPlatforms"
         @update:filters="handleFiltersChange"
+        @platform-change="handlePlatformChange"
         @refresh="handleHeaderRefresh"
       />
 
@@ -26,7 +30,7 @@
           class="export-button"
           type="success"
           :icon="Download"
-          :disabled="['aiAssistant', 'collector'].includes(activeModule)"
+          :disabled="['overview', 'contents', 'creator', 'aiAssistant', 'collector'].includes(activeModule)"
           @click="handleExportReport"
         >
           {{ exportMeta.buttonText }}
@@ -53,6 +57,8 @@ import { fetchVideoDetail } from '@/api/analysis'
 import { refreshTasks } from '@/api/tasks'
 import { createReportHistory, fetchAnomalyRules, fetchDataSourceStatuses, fetchReportHistory } from '@/api/platform'
 import { exportExcelWorkbook } from '@/utils/exportExcel'
+import { usePlatformContext } from '@/composables/usePlatformContext'
+import { useCommentInsights } from '@/composables/useCommentInsights'
 import {
   average,
   formatCompact,
@@ -75,18 +81,49 @@ const {
   danmakuHotspots,
   dataQuality,
   handleRefresh: handleDashboardRefresh,
-  handleFiltersChange,
-} = useDashboardData()
+  handleFiltersChange: handleDashboardFiltersChange,
+} = useDashboardData({ autoLoad: false })
+
+const { platforms, selectedPlatform, loadingPlatforms, loadPlatforms } = usePlatformContext()
+const {
+  summary: commentSummary,
+  trends: commentTrends,
+  negativeItems: commentNegativeItems,
+} = useCommentInsights()
+loadPlatforms().catch(() => {})
 
 const router = useRouter()
 const route = useRoute()
 
+const validPeriods = new Set(['7d', '30d', '90d'])
+
+watch(
+  () => route.query.platform,
+  (platform) => {
+    const next = typeof platform === 'string' && platform.trim() ? platform : 'all'
+    if (selectedPlatform.value !== next) selectedPlatform.value = next
+  },
+  { immediate: true },
+)
+
+watch(
+  () => [route.query.channel, route.query.period],
+  ([channel, period]) => {
+    const nextChannel = typeof channel === 'string' && channel.trim() ? channel : 'all'
+    const nextPeriod = validPeriods.has(period) ? period : '30d'
+    if (filters.channel !== nextChannel) filters.channel = nextChannel
+    if (filters.period !== nextPeriod) filters.period = nextPeriod
+  },
+  { immediate: true },
+)
+
 const moduleCopy = {
   overview: ['数据总览', '聚合视频热度、弹幕、评论情感和 UP 主表现，快速判断整体增长状态。'],
   video: ['视频分析', '围绕单个视频拆解播放、互动、热度和口碑，定位爆款与待优化内容。'],
+  contents: ['内容分析', '统一查看抖音、哔哩哔哩、爱奇艺和优酷的内容表现与可比指标。'],
   danmaku: ['弹幕分析', '用时间轴识别观众集中反应片段，辅助剪辑、复盘和内容解释。'],
   comment: ['评论洞察', '分析评论情感结构和负面样本，服务舆情处理与用户反馈归因。'],
-  creator: ['UP主画像', '横向比较创作者能力，识别高热度账号、口碑短板和合作优先级。'],
+  creator: ['发布账号', '横向比较创作者、频道和发行方的内容规模与归一化热度。'],
   task: ['任务中心', '把数据发现转成运营动作，沉淀可执行的分析工作流。'],
   collector: ['数据采集', '配置 B 站公开数据采集任务，按热门、首页、UP 主或关键词抓取视频、评论和弹幕。'],
   dataSource: ['数据监控', '监控各层数据表的数据量、更新时间和可访问状态，保证图表可信。'],
@@ -96,12 +133,13 @@ const moduleCopy = {
 }
 
 const exportCopy = {
-  overview: ['完整数据报表', '导出热度、情感、弹幕、关键词、UP主和负面评论全部工作表。', '导出完整报表'],
+  overview: ['统一总览报表', 'v2 统一报表等待真实 ADS 表落地后开放。', '暂不可导出'],
+  contents: ['统一内容报表', '统一内容导出将在 v2 ADS 导入完成后开放。', '暂不可导出'],
   video: ['视频专项报表', '导出视频热度排行和情感统计，用于内容复盘。', '导出视频专项'],
   videoDetail: ['单视频复盘报表', '导出当前视频的基础指标、情感、弹幕、关键词、负面评论和运营建议。', '导出当前视频'],
   danmaku: ['弹幕专项报表', '导出当前视频的弹幕高峰时间点、弹幕数、情感和关键词。', '导出弹幕专项'],
   comment: ['评论专项报表', '导出评论情感趋势、情感占比和负面评论样本。', '导出评论专项'],
-  creator: ['UP主专项报表', '导出 UP 主表现排行和能力评估数据。', '导出 UP主专项'],
+  creator: ['发布账号报表', 'v2 账号报表等待真实 ADS 表落地后开放。', '暂不可导出'],
   task: ['运营任务报表', '导出基于数据库分析结果自动生成的运营动作建议。', '导出任务专项'],
   collector: ['数据采集任务', '采集任务产物为本地 CSV/JSONL 文件，暂不纳入 Excel 导出。', '无需导出'],
   dataSource: ['数据监控报表', '导出数据源状态、数据量和同步健康情况。', '导出监控报表'],
@@ -121,7 +159,7 @@ const metricDefinitions = [
 watch(
   () => route.name,
   (name) => {
-    const moduleName = name === 'videoDetail' ? 'video' : name
+    const moduleName = name === 'videoDetail' ? 'video' : name === 'contentDetail' ? 'contents' : name
     if (moduleName && moduleName !== activeModule.value) {
       activeModule.value = moduleName
     }
@@ -131,7 +169,12 @@ watch(
 
 function navigate(key) {
   activeModule.value = key
-  router.push({ name: key })
+  const unifiedModules = ['overview', 'contents', 'comment', 'creator', 'collector', 'dataSource']
+  const query = unifiedModules.includes(key) && selectedPlatform.value !== 'all'
+    ? { platform: selectedPlatform.value }
+    : undefined
+  if (!unifiedModules.includes(key)) selectedPlatform.value = 'all'
+  router.push({ name: key, query })
 }
 
 async function handleHeaderRefresh() {
@@ -140,7 +183,33 @@ async function handleHeaderRefresh() {
     return
   }
 
+  if (activeModule.value === 'comment') {
+    window.dispatchEvent(new CustomEvent('bililens:refresh-comments'))
+    return
+  }
+
   await handleDashboardRefresh()
+}
+
+async function handleFiltersChange(nextFilters) {
+  await handleDashboardFiltersChange(nextFilters)
+  router.replace({
+    query: {
+      ...route.query,
+      channel: nextFilters.channel === 'all' ? undefined : nextFilters.channel,
+      period: nextFilters.period === '30d' ? undefined : nextFilters.period,
+    },
+  })
+}
+
+function handlePlatformChange(value) {
+  selectedPlatform.value = value
+  const unifiedModules = ['overview', 'contents', 'comment', 'creator', 'collector', 'dataSource']
+  if (value !== 'all' && !unifiedModules.includes(activeModule.value)) {
+    router.push({ name: 'contents', query: { platform: value, contentType: 'all' } })
+    return
+  }
+  router.replace({ query: { ...route.query, ...(value === 'all' ? { platform: undefined } : { platform: value }) } })
 }
 
 const moduleMeta = computed(() => {
@@ -158,8 +227,9 @@ const moduleFilterConfig = computed(() => {
   const config = {
     overview: { showChannel: true, showPeriod: true },
     video: { showChannel: false, showPeriod: false },
+    contents: { showChannel: false, showPeriod: false },
     danmaku: { showChannel: false, showPeriod: false },
-    comment: { showChannel: false, showPeriod: true },
+    comment: { showChannel: false, showPeriod: false },
     creator: { showChannel: false, showPeriod: false },
     task: { showChannel: false, showPeriod: false },
     collector: { showChannel: false, showPeriod: false },
@@ -191,25 +261,19 @@ const moduleMetrics = computed(() => {
   }
 
   if (activeModule.value === 'comment') {
-    const negativeCount = videoSentiments.value.reduce((sum, item) => sum + item.negativeCount, 0)
+    const averageSentiment = commentSummary.value.averageSentiment
+    const coverage = commentSummary.value.interactionCount > 0
+      ? commentSummary.value.analyzedCount / commentSummary.value.interactionCount
+      : 0
     return [
-      metric('负向评论', formatCompact(negativeCount), `${negativeComments.value.length} 条样本`, '待排查', 'warn', '负向评论数量来自视频情感统计中的 negative_count。'),
-      metric('平均情感', avgSentiment.toFixed(3), avgSentiment >= 0.55 ? '偏正向' : '需关注', '按视频均值', avgSentiment >= 0.55 ? 'up' : 'warn', '对当前情感样本求 avg_sentiment 均值。'),
-      metric('评论总量', formatCompact(videoSentiments.value.reduce((sum, item) => sum + item.totalCount, 0)), '情感样本', '来自分析表', 'up', '情感模型参与统计的评论样本总量。'),
-      metric('关键词数', keywords.value.length, 'TopN', '可用于归因', 'up', '关键词来自关键词聚合接口，优先使用全局维度。'),
+      metric('互动总量', formatCompact(commentSummary.value.interactionCount), '评论/回复/剧评', '统一互动事实表', 'up', '当前平台和日期范围内的评论类互动总量。'),
+      metric('已分析样本', formatCompact(commentSummary.value.analyzedCount), formatPercent(coverage), '情感覆盖率', coverage >= 0.8 ? 'up' : 'warn', '完成情感模型分析的互动数及其覆盖率。'),
+      metric('平均情感', averageSentiment == null ? '--' : averageSentiment.toFixed(3), averageSentiment != null && averageSentiment >= 0.55 ? '偏正向' : '需关注', '跨平台统一分值', averageSentiment != null && averageSentiment >= 0.55 ? 'up' : 'warn', '当前筛选范围内已分析互动的平均情感分。'),
+      metric('负向样本', formatCompact(commentSummary.value.negativeCount), formatPercent(commentSummary.value.negativeRatio), '待排查', commentSummary.value.negativeCount > 0 ? 'warn' : 'up', '情感标签为 negative 的评论、回复或剧评数量。'),
     ]
   }
 
-  if (activeModule.value === 'creator') {
-    return [
-      metric('UP主数量', upPerformance.value.length, '参与排行', '当前样本', 'up', '当前 UP 主表现排行返回的创作者数量。'),
-      metric('最高平均热度', formatCompact(Math.max(0, ...upPerformance.value.map((item) => item.avgHeatScore))), 'Top 1', '按平均热度', 'up', '按 UP 主历史样本的 avg_heat_score 排序。'),
-      metric('总点赞量', formatCompact(upPerformance.value.reduce((sum, item) => sum + item.totalLikeCount, 0)), '累计', '账号互动', 'up', '当前 UP 主样本的点赞数求和。'),
-      metric('平均情感', avgSentiment.toFixed(3), '口碑参考', '跨视频均值', 'up', '用视频情感均值辅助判断创作者口碑。'),
-    ]
-  }
-
-  if (['collector', 'dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
+  if (['overview', 'contents', 'creator', 'collector', 'dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
     return []
   }
 
@@ -314,13 +378,28 @@ async function buildReportSheets(moduleKey) {
       ['bvid', 'BVID'], ['rpid', '评论ID'], ['userName', '用户'], ['cleanContent', '评论内容'],
       ['likeCount', '点赞数'], ['crawledAt', '采集时间'], ['sentimentScore', '情感分'],
     ], negativeComments.value),
+    commentSummary: sheet('统一互动情感汇总', [
+      ['platformCode', '平台'], ['interactionType', '互动类型'], ['interactionCount', '互动总量'],
+      ['analyzedCount', '已分析数'], ['positiveCount', '正向数'], ['neutralCount', '中性数'],
+      ['negativeCount', '负向数'], ['averageSentiment', '平均情感'], ['positiveRatio', '正向占比'],
+      ['neutralRatio', '中性占比'], ['negativeRatio', '负向占比'],
+    ], [commentSummary.value]),
+    commentTrend: sheet('统一互动情感趋势', [
+      ['statDate', '日期'], ['interactionCount', '互动数'], ['analyzedCount', '已分析数'],
+      ['averageSentiment', '平均情感'], ['negativeRatio', '负向占比'],
+    ], commentTrends.value),
+    commentNegative: sheet('统一负向互动样本', [
+      ['platformCode', '平台'], ['externalContentId', '内容ID'], ['contentTitle', '内容标题'],
+      ['interactionType', '互动类型'], ['userName', '用户'], ['text', '互动内容'],
+      ['likeCount', '点赞数'], ['sentimentScore', '情感分'], ['occurredAt', '发生时间'],
+    ], commentNegativeItems.value),
   }
 
   const map = {
     overview: [sheets.videoRank, sheets.videoSentiment, sheets.trend, sheets.danmaku, sheets.keywords, sheets.creator, sheets.negative],
     video: [sheets.videoRank, sheets.videoSentiment],
     danmaku: [sheets.danmaku],
-    comment: [sheets.videoSentiment, sheets.trend, sheets.negative],
+    comment: [sheets.commentSummary, sheets.commentTrend, sheets.commentNegative],
     creator: [sheets.creator],
   }
   return withReportContext(map[moduleKey] ?? map.overview, moduleKey)

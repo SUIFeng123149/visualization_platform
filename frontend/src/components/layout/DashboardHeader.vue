@@ -7,6 +7,20 @@
 
     <div class="filters">
       <el-select
+        :model-value="platform"
+        :loading="loadingPlatforms"
+        aria-label="视频平台筛选"
+        @update:model-value="$emit('platform-change', $event)"
+      >
+        <el-option label="全部平台" value="all" />
+        <el-option
+          v-for="item in platforms"
+          :key="item.platformCode"
+          :label="item.displayName"
+          :value="item.platformCode"
+        />
+      </el-select>
+      <el-select
         v-if="showChannelFilter"
         :model-value="filters.channel"
         aria-label="内容类型筛选"
@@ -61,9 +75,21 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  platforms: {
+    type: Array,
+    default: () => [],
+  },
+  platform: {
+    type: String,
+    default: 'all',
+  },
+  loadingPlatforms: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['update:filters', 'refresh'])
+const emit = defineEmits(['update:filters', 'platform-change', 'refresh'])
 
 function updateFilter(key, value) {
   emit('update:filters', {

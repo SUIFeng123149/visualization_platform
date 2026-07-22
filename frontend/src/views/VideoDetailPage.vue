@@ -50,7 +50,7 @@
       </ChartPanel>
 
       <ChartPanel title="弹幕高能切片" description="自动定位观众反应最集中的片段，辅助制作二创切片。">
-        <DanmakuScatterChart :data="detail.danmakuTimeline" />
+        <DanmakuTimelineChart :data="detail.danmakuTimeline" />
       </ChartPanel>
     </section>
 
@@ -154,7 +154,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ChartPanel from '@/components/charts/ChartPanel.vue'
-import DanmakuScatterChart from '@/components/charts/DanmakuScatterChart.vue'
+import DanmakuTimelineChart from '@/components/charts/DanmakuTimelineChart.vue'
 import SentimentPieChart from '@/components/charts/SentimentPieChart.vue'
 import MetricGrid from '@/components/metrics/MetricGrid.vue'
 import AiInsightPanel from '@/components/ai/AiInsightPanel.vue'
@@ -313,8 +313,10 @@ function clamp(value, min, max) {
 }
 
 function goBack() {
-  if (window.history.length > 1) {
-    router.back()
+  const destinations = { video: 'video', danmaku: 'danmaku', task: 'task' }
+  const from = typeof route.query.from === 'string' ? route.query.from : ''
+  if (destinations[from]) {
+    router.push({ name: destinations[from] })
     return
   }
   router.push({ name: 'video' })

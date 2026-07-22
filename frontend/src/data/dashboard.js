@@ -1,9 +1,9 @@
 export const navItems = [
   { key: 'overview', label: '数据总览', icon: 'DataLine' },
-  { key: 'video', label: '视频分析', icon: 'VideoCamera' },
+  { key: 'contents', label: '内容分析', icon: 'VideoCamera' },
   { key: 'danmaku', label: '弹幕分析', icon: 'Histogram' },
   { key: 'comment', label: '评论洞察', icon: 'ChatDotRound' },
-  { key: 'creator', label: 'UP主画像', icon: 'User' },
+  { key: 'creator', label: '创作者画像', icon: 'User' },
   { key: 'task', label: '任务中心', icon: 'Tickets' },
   { key: 'collector', label: '数据采集', icon: 'Download' },
   { key: 'dataSource', label: '数据监控', icon: 'Monitor' },

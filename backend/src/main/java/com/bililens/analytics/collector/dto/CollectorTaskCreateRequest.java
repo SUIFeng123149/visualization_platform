@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
+import java.util.Map;
 
 public record CollectorTaskCreateRequest(
         @Size(max = 120) String taskName,
@@ -25,6 +26,12 @@ public record CollectorTaskCreateRequest(
         @Size(max = 32) String ocrLanguage,
         @Min(0) @Max(1) Double minOcrConfidence,
         @Size(max = 16) String priority,
-        @Size(max = 500) String callbackUrl
+        @Size(max = 500) String callbackUrl,
+        @Size(max = 32) String platformCode,
+        @Size(max = 128) String connectorName,
+        @Size(max = 32) String targetType,
+        List<@Size(max = 500) String> targets,
+        Map<String, Object> options,
+        List<@Size(max = 64) String> requestedCapabilities
 ) {
 }

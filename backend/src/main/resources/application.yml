@@ -17,10 +17,10 @@ spring:
   web:
     locale: zh_CN
   datasource:
-    url: jdbc:mysql://localhost:3306/bilibili_analysis?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/${ANALYTICS_DB_NAME:bilibili_analysis}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 123456
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2

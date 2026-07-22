@@ -61,10 +61,6 @@ public class AnalysisService {
 
     @Cacheable(value = "sentimentTrend", key = "{#startDate, #endDate}")
     public List<SentimentTrendDto> getSentimentTrend(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null && endDate == null) {
-            startDate = LocalDate.now().minusDays(365);
-            endDate = LocalDate.now();
-        }
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("startDate must be earlier than or equal to endDate");
         }

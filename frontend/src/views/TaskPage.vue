@@ -124,7 +124,7 @@ async function updateStatus(taskId, status) {
 }
 
 function openVideo(bvid) {
-  router.push({ name: 'videoDetail', params: { bvid } })
+  router.push({ name: 'videoDetail', params: { bvid }, query: { from: 'task' } })
 }
 
 function sourceLabel(source) {

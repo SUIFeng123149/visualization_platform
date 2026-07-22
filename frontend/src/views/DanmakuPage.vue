@@ -1,12 +1,12 @@
 <template>
   <section class="analysis-grid">
-    <ChartPanel title="弹幕时间轴散点图" description="定位弹幕最密集的片段，辅助寻找名场面、争议点和剪辑切点。">
+    <ChartPanel title="弹幕高峰与情感走势" description="沿视频时间对照弹幕数量与平均情感，快速定位高能片段、争议点和情绪转折。">
       <template #actions>
         <el-select v-model="selectedBvid" class="module-select" placeholder="选择视频">
           <el-option v-for="video in heatRank" :key="video.bvid" :label="video.title" :value="video.bvid" />
         </el-select>
       </template>
-      <DanmakuScatterChart :data="danmakuTimeline" />
+      <DanmakuTimelineChart :data="danmakuTimeline" />
     </ChartPanel>
 
     <ChartPanel title="弹幕高峰列表" description="把图表中的高峰点转成可检查的时间节点，点击关联视频可进入复盘。">
@@ -23,7 +23,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import ChartPanel from '@/components/charts/ChartPanel.vue'
-import DanmakuScatterChart from '@/components/charts/DanmakuScatterChart.vue'
+import DanmakuTimelineChart from '@/components/charts/DanmakuTimelineChart.vue'
 import { useDashboardData } from '@/composables/useDashboardData'
 
 const router = useRouter()
@@ -31,6 +31,6 @@ const { selectedBvid, heatRank, danmakuTimeline, danmakuHotspots } = useDashboar
 
 function openHotspot(row) {
   if (!row?.bvid) return
-  router.push({ name: 'videoDetail', params: { bvid: row.bvid } })
+  router.push({ name: 'videoDetail', params: { bvid: row.bvid }, query: { from: 'danmaku' } })
 }
 </script>

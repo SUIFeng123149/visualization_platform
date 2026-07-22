@@ -1,5 +1,5 @@
 <template>
-  <div v-if="hasData" ref="chartEl" class="chart small" role="img" aria-label="评论情感占比环图"></div>
+  <div v-if="hasData" ref="chartEl" class="chart small" role="img" aria-label="互动情感占比环图"></div>
   <div v-else class="empty-state small">暂无情感数据</div>
 </template>
 
@@ -35,7 +35,7 @@ useEChart(chartEl, () => ({
   legend: { bottom: 8 },
   series: [
     {
-      name: '评论情感',
+      name: '互动情感',
       type: 'pie',
       radius: ['46%', '70%'],
       center: ['50%', '46%'],

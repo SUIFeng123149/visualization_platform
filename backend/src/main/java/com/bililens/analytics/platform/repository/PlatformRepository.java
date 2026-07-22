@@ -24,6 +24,12 @@ public class PlatformRepository {
 
     public List<DataSourceStatusDto> findDataSourceStatuses() {
         return List.of(
+                tableStatus("dim_platform", "平台维表（v2）", "DIM", null),
+                tableStatus("dim_account", "发布账号维表（v2）", "DIM", null),
+                tableStatus("dim_content", "统一内容维表（v2）", "DIM", null),
+                tableStatus("fact_content_metric_snapshot", "内容指标快照（v2）", "DWD", "captured_at"),
+                tableStatus("fact_interaction", "统一互动明细（v2）", "DWD", "captured_at"),
+                tableStatus("fact_text_analysis", "统一文本分析（v2）", "DWS", "created_at"),
                 tableStatus("dwd_comment_clean", "清洗评论明细", "DWD", "created_at"),
                 tableStatus("dwd_danmaku_clean", "清洗弹幕明细", "DWD", "created_at"),
                 tableStatus("dws_text_analysis_detail", "文本分析明细", "DWS", "created_at"),

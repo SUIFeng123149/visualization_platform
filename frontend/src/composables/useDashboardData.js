@@ -22,6 +22,7 @@ const lastRefreshedAt = ref('')
 const heatRank = shallowRef([])
 const videoSentiments = shallowRef([])
 const sentimentTrend = shallowRef([])
+const sentimentTrendFallback = ref(false)
 const danmakuTimeline = shallowRef([])
 const keywords = shallowRef([])
 const upPerformance = shallowRef([])
@@ -163,13 +164,14 @@ async function loadDashboardData() {
   loading.value = true
   loadingPromise = (async () => {
     try {
-      const [heatRankData, historicalSampleData, trendData, keywordData, upData] = await Promise.all([
+      const [heatRankData, historicalSampleData, filteredTrendData, keywordData, upData] = await Promise.all([
         fetchHeatRank(HEAT_RANK_POOL_LIMIT),
         fetchHistoricalVideoSamples(30),
         fetchSentimentTrend(getDateRange(filters.period)),
         fetchKeywords({ dimensionType: 'global', dimensionValue: 'all', limit: 10 }),
         fetchUpPerformance(10),
       ])
+      const trendData = filteredTrendData.length > 0 ? filteredTrendData : await fetchSentimentTrend()
       const mergedHeatRankData = mergeVideoPools(heatRankData, historicalSampleData)
       const heatRankBvids = mergedHeatRankData.map((item) => item.bvid)
       const matchedSentimentData = heatRankBvids.length > 0 ? await fetchVideoSentimentByBvidsInChunks(heatRankBvids) : []
@@ -177,6 +179,7 @@ async function loadDashboardData() {
       heatRank.value = mergedHeatRankData
       videoSentiments.value = fallbackSentimentData
       sentimentTrend.value = trendData
+      sentimentTrendFallback.value = filteredTrendData.length === 0 && trendData.length > 0
       keywords.value = keywordData
       upPerformance.value = upData
       selectedBvid.value = mergedHeatRankData[0]?.bvid ?? ''
@@ -287,8 +290,8 @@ function buildDataQualityWarnings(stats) {
   return warnings
 }
 
-export function useDashboardData() {
-  ensureDashboardData()
+export function useDashboardData(options = {}) {
+  if (options.autoLoad !== false) ensureDashboardData()
 
   return {
     activeModule,
@@ -299,6 +302,7 @@ export function useDashboardData() {
     heatRank,
     videoSentiments,
     sentimentTrend,
+    sentimentTrendFallback,
     danmakuTimeline,
     keywords,
     upPerformance,

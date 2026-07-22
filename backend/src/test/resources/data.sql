@@ -6,6 +6,62 @@ values
 ('BV002', 'ECharts可视化看板搭建指南', '前端研究所', '科技', 126000, 7800, 2100, 4300, 1800, 4800, 60300.0, 3),
 ('BV004', 'UP主增长数据复盘方法', '运营观察员', '知识', 72000, 4200, 900, 2200, 1200, 2600, 34980.0, 4);
 
+insert into dim_platform (platform_code, display_name, capabilities_json, enabled) values
+('bilibili', '哔哩哔哩', '{"comments":true,"replies":true,"reviews":false,"danmaku":true}', 1),
+('douyin', '抖音', '{"comments":true,"replies":true,"reviews":false,"danmaku":false}', 1),
+('iqiyi', '爱奇艺', '{"comments":true,"replies":false,"reviews":true,"danmaku":false}', 1),
+('youku', '优酷', '{"comments":true,"replies":false,"reviews":true,"danmaku":false}', 1);
+
+insert into dim_account (account_id, platform_code, external_account_id, display_name, account_type) values
+(1, 'bilibili', 'UP001', '数据小助手', 'creator'),
+(2, 'iqiyi', 'ORG001', '星河影视', 'publisher'),
+(3, 'youku', 'ORG002', '云帆剧场', 'publisher');
+
+insert into dim_content (content_id, platform_code, external_content_id, content_type, account_id, title, category, published_at) values
+(1, 'bilibili', 'BV003', 'video', 1, 'B站弹幕情感分析案例', '知识', '2026-05-20 10:00:00'),
+(2, 'douyin', 'DY001', 'short_video', null, '短视频案例', '科技', '2026-05-21 10:00:00'),
+(3, 'iqiyi', 'IQ_SERIES_1', 'series', 2, '星河计划', '电视剧', '2026-05-01 20:00:00'),
+(4, 'iqiyi', 'IQ_EP_1', 'episode', 2, '星河计划 第一集', '电视剧', '2026-05-22 20:00:00'),
+(5, 'youku', 'YK_EP_1', 'episode', 3, '云端追光 第一集', '电视剧', '2026-05-23 20:00:00');
+
+update dim_content set parent_content_id = 3 where content_id = 4;
+
+insert into fact_content_metric_snapshot
+(content_id, captured_at, view_count, like_count, comment_count, share_count, favorite_count, danmaku_count, coin_count, platform_heat_score, normalized_heat_score) values
+(1, '2026-05-26 10:00:00', 188000, 13200, 3600, 1000, 7800, 9200, 4200, 85920, 0.92),
+(2, '2026-05-26 10:00:00', 250000, 18000, 2400, 3200, 5000, null, null, 91000, 0.88),
+(3, '2026-05-26 10:00:00', 800000, null, 12000, 900, 21000, null, null, 93000, 0.95),
+(4, '2026-05-26 10:00:00', 320000, 6000, 4200, 320, 8000, null, null, 72000, 0.81),
+(5, '2026-05-26 10:00:00', 280000, 5200, 3600, 280, 7200, null, null, 68000, 0.78);
+
+insert into fact_interaction
+(interaction_id, content_id, platform_code, external_interaction_id, interaction_type, external_user_id, user_name, text, like_count, video_time_seconds, occurred_at, captured_at, batch_id, raw_attributes) values
+(1, 1, 'bilibili', 'BILI_C1', 'comment', 'U1', '用户甲', '讲得很清楚，案例实用', 120, null, '2026-05-25 09:00:00', '2026-05-25 10:00:00', 'mock-batch', '{}'),
+(2, 1, 'bilibili', 'BILI_D1', 'danmaku', 'U2', '用户乙', '这里高能', 8, 65, '2026-05-25 09:01:00', '2026-05-25 10:00:00', 'mock-batch', '{}'),
+(3, 1, 'bilibili', 'BILI_D2', 'danmaku', 'U3', '用户丙', '模型有点难', 3, 78, '2026-05-25 09:02:00', '2026-05-25 10:00:00', 'mock-batch', '{}'),
+(4, 2, 'douyin', 'DY_C1', 'comment', 'DU1', '短视频用户', '节奏很快但信息有用', 88, null, '2026-05-26 11:00:00', '2026-05-26 12:00:00', 'mock-batch', '{}'),
+(5, 4, 'iqiyi', 'IQ_R1', 'review', 'IU1', '追剧用户', '第一集剧情完整', 36, null, '2026-05-26 20:00:00', '2026-05-26 21:00:00', 'mock-batch', '{}'),
+(6, 1, 'bilibili', 'BILI_C2', 'comment', 'U4', '复盘用户', '案例有用，但情感模型解释不够清楚', 66, null, '2026-05-26 09:30:00', '2026-05-26 10:00:00', 'mock-batch', '{}'),
+(7, 2, 'douyin', 'DY_C2', 'comment', 'DU2', '短视频观众', '信息不少，但字幕太快看不清', 142, null, '2026-05-26 11:30:00', '2026-05-26 12:00:00', 'mock-batch', '{}'),
+(8, 2, 'douyin', 'DY_R1', 'reply', 'DU3', '互动用户', '回复说明后可以理解', 23, null, '2026-05-26 11:40:00', '2026-05-26 12:00:00', 'mock-batch', '{}'),
+(9, 4, 'iqiyi', 'IQ_R2', 'review', 'IU2', '剧评用户', '节奏拖沓，人物动机不够合理', 98, null, '2026-05-25 20:00:00', '2026-05-25 21:00:00', 'mock-batch', '{}'),
+(10, 5, 'youku', 'YK_R1', 'review', 'YU1', '追剧观众', '镜头质感很好，主角表现自然', 75, null, '2026-05-24 20:00:00', '2026-05-24 21:00:00', 'mock-batch', '{}'),
+(11, 5, 'youku', 'YK_C1', 'comment', 'YU2', '评论用户', '更新太慢，剧情推进也有点拖', 109, null, '2026-05-26 20:30:00', '2026-05-26 21:00:00', 'mock-batch', '{}');
+
+insert into fact_text_analysis
+(analysis_id, interaction_id, sentiment_score, sentiment_label, tokens, keywords, model_version, created_at) values
+(1, 1, 0.86, 'positive', '清楚,案例,实用', '清楚,案例', 'mock-v1', '2026-05-25 10:05:00'),
+(2, 2, 0.91, 'positive', '高能', '高能', 'mock-v1', '2026-05-25 10:05:00'),
+(3, 3, 0.28, 'negative', '模型,难', '模型,难度', 'mock-v1', '2026-05-25 10:05:00'),
+(4, 4, 0.68, 'positive', '节奏,信息,有用', '节奏,信息', 'mock-v1', '2026-05-26 12:05:00'),
+(5, 5, 0.76, 'positive', '剧情,完整', '剧情,完整', 'mock-v1', '2026-05-26 21:05:00'),
+(6, 6, 0.27, 'negative', '模型,解释,清楚', '模型,解释', 'mock-v1', '2026-05-26 10:05:00'),
+(7, 7, 0.19, 'negative', '信息,字幕,太快', '信息,字幕', 'mock-v1', '2026-05-26 12:05:00'),
+(8, 8, 0.55, 'neutral', '回复,理解', '回复,理解', 'mock-v1', '2026-05-26 12:05:00'),
+(9, 9, 0.16, 'negative', '节奏,拖沓,动机', '节奏,剧情', 'mock-v1', '2026-05-25 21:05:00'),
+(10, 10, 0.88, 'positive', '镜头,质感,自然', '镜头,质感', 'mock-v1', '2026-05-24 21:05:00'),
+(11, 11, 0.21, 'negative', '更新,剧情,拖', '更新,剧情', 'mock-v1', '2026-05-26 21:05:00');
+
 insert into ads_video_sentiment
 (bvid, title, avg_sentiment, positive_count, neutral_count, negative_count, total_count, positive_ratio, negative_ratio)
 values

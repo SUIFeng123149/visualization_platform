@@ -21,6 +21,16 @@ const routes = [
     component: () => import('@/views/VideoDetailPage.vue'),
   },
   {
+    path: '/contents',
+    name: 'contents',
+    component: () => import('@/views/ContentPage.vue'),
+  },
+  {
+    path: '/contents/:contentId',
+    name: 'contentDetail',
+    component: () => import('@/views/ContentDetailPage.vue'),
+  },
+  {
     path: '/danmaku',
     name: 'danmaku',
     component: () => import('@/views/DanmakuPage.vue'),

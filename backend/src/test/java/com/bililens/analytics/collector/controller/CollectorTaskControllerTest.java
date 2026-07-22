@@ -94,4 +94,33 @@ class CollectorTaskControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
     }
+
+    @Test
+    void collectorTaskAcceptsPlatformNeutralContract() throws Exception {
+        String response = mockMvc.perform(post("/api/collector/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "taskName": "爱奇艺剧集采集",
+                                  "platformCode": "iqiyi",
+                                  "connectorName": "iqiyi-approved-source-v1",
+                                  "targetType": "series",
+                                  "targets": ["IQ_SERIES_1"],
+                                  "requestedCapabilities": ["content", "metrics", "reviews", "series"],
+                                  "options": {"maxEpisodes": 20, "includeReviews": true}
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sourceType").value("iqiyi"))
+                .andExpect(jsonPath("$.data.paramsJson").value(org.hamcrest.Matchers.containsString("\"schemaVersion\":\"2.0\"")))
+                .andExpect(jsonPath("$.data.paramsJson").value(org.hamcrest.Matchers.containsString("\"maxEpisodes\":20")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String taskId = response.replaceFirst("(?s).*\"taskId\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+        mockMvc.perform(post("/api/collector/tasks/" + taskId + "/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("cancelled"));
+    }
 }

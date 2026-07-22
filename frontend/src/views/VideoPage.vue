@@ -108,7 +108,7 @@ watch(
 
 function openVideo(bvid) {
   if (!bvid) return
-  router.push({ name: 'videoDetail', params: { bvid } })
+  router.push({ name: 'videoDetail', params: { bvid }, query: { from: 'video' } })
 }
 
 function maxBy(items, getter) {

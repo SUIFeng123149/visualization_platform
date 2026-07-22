@@ -1,214 +1,136 @@
 <template>
-  <ChartPanel class="overview-trend-panel" title="播放量 / 互动量动态趋势" description="用于观察评论、弹幕和情感随时间变化的节奏，周期由右上角日期筛选控制。">
-    <template #actions>
-      <el-segmented v-model="trendMode" :options="['日', '周', '月']" />
-    </template>
-    <TrendChart :mode="trendMode" :data="sentimentTrend" />
-  </ChartPanel>
+  <section v-loading="loadingUnified" class="unified-overview">
+    <el-alert v-if="unifiedError" :title="unifiedError" type="error" show-icon :closable="false" />
 
-  <section class="overview-chart-grid">
-    <ChartPanel title="弹幕时间轴高峰点" description="散点大小代表同一时间段弹幕密度，用来定位视频高潮点。点击下方高能卡片可进入视频复盘。">
-      <DanmakuScatterChart :data="danmakuTimeline" />
-      <InsightCards :items="dynamicInsightCards" />
-    </ChartPanel>
+    <MetricGrid :metrics="overviewMetrics" />
 
-    <ChartPanel title="评论情感占比" description="快速判断当前评论区口碑结构；没有评论情感样本的视频不会计算正向占比。">
-      <SentimentPieChart :data="videoSentiments" />
-    </ChartPanel>
-
-    <ChartPanel title="UP主能力雷达" description="对比创作者的播放、热度、口碑和互动能力，避免只按播放量判断。">
-      <UpRadarChart :data="upPerformance" />
-    </ChartPanel>
-  </section>
-
-  <section class="overview-ops-grid">
-    <DataQualityPanel :quality="dataQuality" />
-
-    <AiInsightPanel
-      title="AI解读当前总览"
-      description="读取当前筛选后的视频、情感、关键词、弹幕高峰和数据质量，生成页面级分析结论。"
-      mode="overview-insight"
-      :context="overviewAiContext"
-      :prompts="overviewPrompts"
-    />
-
-    <article class="panel anomaly-panel">
+    <section class="panel content-panel">
       <div class="panel-header">
         <div>
-          <div class="panel-title">异常检测中心</div>
-          <div class="panel-desc">自动识别热度、互动、情感和弹幕中的优先关注对象。</div>
+          <div class="panel-title">内容热度概览</div>
+          <div class="panel-desc">跨平台按归一化热度比较，原始播放量仅作为平台内规模参考。</div>
+        </div>
+        <el-button
+          type="primary"
+          plain
+          @click="router.push({ name: 'contents', query: selectedPlatform === 'all' ? undefined : { platform: selectedPlatform } })"
+        >查看全部内容</el-button>
+      </div>
+      <el-table :data="contents.slice(0, 10)" empty-text="暂无统一内容数据" style="width: 100%" @row-click="openContent">
+        <el-table-column prop="title" label="内容" min-width="280" />
+        <el-table-column label="平台" width="110"><template #default="{ row }">{{ platformName(row.platformCode) }}</template></el-table-column>
+        <el-table-column label="类型" width="100"><template #default="{ row }">{{ contentTypeName(row.contentType) }}</template></el-table-column>
+        <el-table-column label="播放量" width="130"><template #default="{ row }">{{ count(row.viewCount) }}</template></el-table-column>
+        <el-table-column label="归一化热度" width="140"><template #default="{ row }">{{ percentile(row.normalizedHeatScore) }}</template></el-table-column>
+      </el-table>
+    </section>
+
+    <section class="overview-columns">
+      <section class="panel content-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">互动趋势</div>
+            <div class="panel-desc">评论、弹幕、评分和回复使用统一互动类型。</div>
+          </div>
+        </div>
+        <UnifiedInteractionTrendChart :data="trends" />
+      </section>
+
+      <section class="panel content-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">讨论关键词</div>
+            <div class="panel-desc">来自统一文本分析占位表，后续可直接替换为真实模型结果。</div>
+          </div>
+        </div>
+        <div v-if="keywords.length" class="overview-word-cloud" role="list" aria-label="讨论关键词词云">
+          <span
+            v-for="item in wordCloudItems"
+            :key="item.word"
+            class="overview-word"
+            :class="`word-tone-${item.tone}`"
+            :style="{ '--word-size': `${item.size}px`, '--word-rotate': `${item.rotate}deg` }"
+            :title="`${item.word}：${item.wordCount} 次`"
+            role="listitem"
+          >{{ item.word }}</span>
+        </div>
+        <div v-else class="empty-state small">暂无关键词数据</div>
+      </section>
+    </section>
+
+    <section class="panel content-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">发布账号表现</div>
+          <div class="panel-desc">统一覆盖创作者、频道和发行方，不再限定为 UP 主。</div>
         </div>
       </div>
-      <div class="anomaly-list">
-        <article
-          v-for="item in anomalyInsights"
-          :key="item.title"
-          class="anomaly-item"
-          :class="`anomaly-${item.type}`"
-          @click="openAnomaly(item)"
-        >
-          <div>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.text }}</p>
-          </div>
-          <el-tag :type="item.type">{{ item.level }}</el-tag>
-        </article>
-      </div>
-    </article>
+      <el-table :data="accounts.slice(0, 10)" empty-text="暂无账号数据" style="width: 100%">
+        <el-table-column prop="displayName" label="账号" min-width="180" />
+        <el-table-column label="平台" width="110"><template #default="{ row }">{{ platformName(row.platformCode) }}</template></el-table-column>
+        <el-table-column prop="accountType" label="类型" width="110" />
+        <el-table-column prop="contentCount" label="内容数" width="100" />
+        <el-table-column label="累计播放" width="140"><template #default="{ row }">{{ count(row.totalViewCount) }}</template></el-table-column>
+        <el-table-column label="平均归一化热度" width="160"><template #default="{ row }">{{ percentile(row.averageNormalizedHeat) }}</template></el-table-column>
+      </el-table>
+    </section>
   </section>
-
-  <VideoTable v-model:keyword="keyword" :videos="filteredVideos" />
-
-  <RecommendationPanel
-    class="overview-actions-panel"
-    :items="globalInsights.length ? globalInsights : recommendations"
-  />
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import ChartPanel from '@/components/charts/ChartPanel.vue'
-import TrendChart from '@/components/charts/TrendChart.vue'
-import SentimentPieChart from '@/components/charts/SentimentPieChart.vue'
-import UpRadarChart from '@/components/charts/UpRadarChart.vue'
-import DanmakuScatterChart from '@/components/charts/DanmakuScatterChart.vue'
-import InsightCards from '@/components/insights/InsightCards.vue'
-import RecommendationPanel from '@/components/insights/RecommendationPanel.vue'
-import DataQualityPanel from '@/components/quality/DataQualityPanel.vue'
-import VideoTable from '@/components/video/VideoTable.vue'
-import AiInsightPanel from '@/components/ai/AiInsightPanel.vue'
-import { recommendations } from '@/data/dashboard'
-import { formatCompact, getInteractions, useDashboardData } from '@/composables/useDashboardData'
+import { ElMessage } from 'element-plus'
+import MetricGrid from '@/components/metrics/MetricGrid.vue'
+import UnifiedInteractionTrendChart from '@/components/charts/UnifiedInteractionTrendChart.vue'
+import { usePlatformContext } from '@/composables/usePlatformContext'
+import { useUnifiedAnalytics } from '@/composables/useUnifiedAnalytics'
 
 const router = useRouter()
+const { platforms, selectedPlatform, loadPlatforms } = usePlatformContext()
+const { contents, trends, keywords, accounts, loadingUnified, unifiedError, summary, loadUnifiedAnalytics } = useUnifiedAnalytics()
 
-const {
-  trendMode,
-  keyword,
-  sentimentTrend,
-  danmakuTimeline,
-  videoSentiments,
-  upPerformance,
-  filteredVideos,
-  visibleHeatRank,
-  keywords: kw,
-  danmakuHotspots,
-  dataQuality,
-  globalInsights,
-} = useDashboardData()
-
-const anomalyInsights = computed(() => {
-  const insights = []
-  const topHeat = visibleHeatRank.value[0]
-  const topInteraction = [...visibleHeatRank.value].sort((a, b) => interactionRate(b) - interactionRate(a))[0]
-  const riskySentiment = [...videoSentiments.value].sort((a, b) => b.negativeRatio - a.negativeRatio)[0]
-  const hotspot = danmakuHotspots.value[0]
-
-  if (topHeat) {
-    insights.push({
-      title: '热度异常高',
-      level: '复盘',
-      type: 'warning',
-      text: `${topHeat.title} 当前热度 ${Math.round(topHeat.heatScore).toLocaleString('zh-CN')}，建议拆解传播来源。`,
-      bvid: topHeat.bvid,
-    })
-  }
-
-  if (topInteraction) {
-    insights.push({
-      title: '互动效率突出',
-      level: '增长',
-      type: 'success',
-      text: `${topInteraction.title} 互动率 ${(interactionRate(topInteraction) * 100).toFixed(1)}%，适合沉淀互动机制。`,
-      bvid: topInteraction.bvid,
-    })
-  }
-
-  if (riskySentiment && riskySentiment.negativeRatio >= 0.2) {
-    insights.push({
-      title: '负向情绪预警',
-      level: '风险',
-      type: 'danger',
-      text: `${riskySentiment.title} 负向占比 ${(riskySentiment.negativeRatio * 100).toFixed(1)}%，建议优先查看评论样本。`,
-      bvid: riskySentiment.bvid,
-    })
-  }
-
-  if (hotspot) {
-    insights.push({
-      title: '弹幕峰值片段',
-      level: '切片',
-      type: 'primary',
-      text: `${hotspot.timeText} 附近弹幕 ${formatCompact(hotspot.danmakuCount)} 条，可作为剪辑切点。`,
-      bvid: hotspot.bvid,
-    })
-  }
-
-  return insights.length ? insights : [{ title: '暂无明显异常', level: '正常', type: 'success', text: '当前样本未触发异常规则。' }]
+const wordCloudItems = computed(() => {
+  const max = Math.max(1, ...keywords.value.map((item) => Number(item.wordCount) || 0))
+  return keywords.value.slice(0, 24).map((item, index) => ({
+    ...item,
+    size: Math.round(15 + ((Number(item.wordCount) || 0) / max) * 20),
+    rotate: index % 5 === 0 ? -2 : index % 4 === 0 ? 2 : 0,
+    tone: index % 5,
+  }))
 })
 
-const dynamicInsightCards = computed(() => [
-  {
-    title: '热度榜首',
-    text: visibleHeatRank.value[0]
-      ? `${visibleHeatRank.value[0].title} 当前热度最高，分数 ${Math.round(visibleHeatRank.value[0].heatScore).toLocaleString('zh-CN')}。`
-      : '暂无热度排行数据。',
-    bvid: visibleHeatRank.value[0]?.bvid,
-  },
-  {
-    title: '高频关键词',
-    text: kw.value.length > 0 ? kw.value.slice(0, 4).map((item) => item.word).join('、') : '暂无关键词数据。',
-    bvid: visibleHeatRank.value[0]?.bvid,
-  },
-  {
-    title: '弹幕高能段',
-    text:
-      danmakuHotspots.value.length > 0
-        ? `峰值出现在 ${danmakuHotspots.value[0].timeText} 附近，可用于切片复盘。`
-        : '暂无弹幕时间轴数据。',
-    bvid: danmakuHotspots.value[0]?.bvid,
-  },
+const overviewMetrics = computed(() => [
+  metric('内容数量', summary.value.contentCount, `${summary.value.platformCount} 个平台`, '当前筛选'),
+  metric('累计播放', count(summary.value.totalViews), '仅汇总可用值', '原始指标'),
+  metric('互动样本', count(summary.value.interactionCount), '评论/弹幕/评分', '统一互动'),
+  metric('平均归一化热度', percentile(summary.value.averageNormalizedHeat), '跨平台参考', '同类百分位'),
 ])
 
-const overviewAiContext = computed(() => ({
-  page: '数据总览',
-  filters: dataQuality.value.filters,
-  dataQuality: dataQuality.value,
-  topVideos: visibleHeatRank.value.slice(0, 8).map((item) => ({
-    bvid: item.bvid,
-    title: item.title,
-    upName: item.upName,
-    category: item.category,
-    viewCount: item.viewCount,
-    heatScore: Math.round(item.heatScore || 0),
-    interactionCount: getInteractions(item),
-  })),
-  sentiments: videoSentiments.value.slice(0, 8).map((item) => ({
-    bvid: item.bvid,
-    title: item.title,
-    positiveRatio: item.positiveRatio,
-    negativeRatio: item.negativeRatio,
-    totalCount: item.totalCount,
-  })),
-  keywords: kw.value.slice(0, 10),
-  danmakuHotspots: danmakuHotspots.value.slice(0, 5),
-  anomalyInsights: anomalyInsights.value,
-}))
+watch(selectedPlatform, load, { immediate: true })
 
-const overviewPrompts = [
-  '解读当前总览页面的核心结论',
-  '当前数据质量有什么风险',
-  '哪些视频最值得优先复盘',
-  '根据当前图表生成运营建议',
-]
-
-function interactionRate(item) {
-  return item?.viewCount > 0 ? getInteractions(item) / item.viewCount : 0
+async function load() {
+  try {
+    await loadPlatforms()
+    await loadUnifiedAnalytics()
+  } catch (error) {
+    ElMessage.error(error.message || '统一总览加载失败')
+  }
 }
 
-function openAnomaly(item) {
-  if (!item.bvid) return
-  router.push({ name: 'videoDetail', params: { bvid: item.bvid } })
+function metric(label, value, delta, note) { return { label, value, delta, note, status: 'up', description: `${label}来自 v2 统一分析接口。` } }
+function openContent(row) {
+  if (!row?.contentId) return
+  router.push({
+    name: 'contentDetail',
+    params: { contentId: row.contentId },
+    query: selectedPlatform.value === 'all' ? undefined : { platform: selectedPlatform.value },
+  })
 }
+function platformName(code) { return platforms.value.find((item) => item.platformCode === code)?.displayName ?? code }
+function count(value) { return value === null || value === undefined ? '不适用' : Number(value).toLocaleString('zh-CN') }
+function percentile(value) { return value === null || value === undefined ? '--' : `P${Math.round(Number(value) * 100)}` }
+function decimal(value) { return value === null || value === undefined ? '--' : Number(value).toFixed(3) }
+function contentTypeName(type) { return { short_video: '短视频', video: '视频', series: '剧集', episode: '单集', movie: '电影' }[type] ?? type }
+function interactionTypeName(type) { return { comment: '评论', danmaku: '弹幕', review: '评分/剧评', reply: '回复' }[type] ?? type }
 </script>
