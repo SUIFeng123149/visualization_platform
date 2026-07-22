@@ -1,208 +1,38 @@
 <template>
   <section class="collector-layout">
-    <section class="panel collector-form-panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-title">通用采集任务</div>
-          <div class="panel-desc">任务使用统一目标和 options 契约；真实连接器接入后无需修改页面或后端任务格式。</div>
-        </div>
-      </div>
-
+    <section class="panel collector-form-panel" v-loading="loading">
+      <div class="panel-header"><div><div class="panel-title">爬虫任务</div><div class="panel-desc">按爬虫平台 OpenAPI 创建、查询、取消和恢复指定视频页面的采集任务。</div></div><el-tag :type="status.configured ? 'success' : 'warning'">{{ status.configured ? '已接入' : '暂未接入' }}</el-tag></div>
+      <el-alert :title="status.message" :type="status.configured ? 'success' : 'warning'" :closable="false" show-icon class="capability-alert" />
       <el-form label-position="top" class="collector-form">
-        <el-form-item label="任务名称"><el-input v-model="form.taskName" maxlength="120" clearable /></el-form-item>
-        <el-form-item label="自然语言需求">
-          <el-input v-model="form.naturalLanguage" type="textarea" :rows="3" maxlength="2000" show-word-limit placeholder="描述时间范围、内容主题和需要采集的互动类型。" />
-        </el-form-item>
-
-        <div class="collector-inline-grid">
-          <el-form-item label="平台">
-            <el-select v-model="form.platformCode" :loading="loadingPlatforms" @change="handlePlatformChange">
-              <el-option v-for="item in platformOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="连接器">
-            <el-input v-model="form.connectorName" readonly aria-label="平台注册连接器" />
-          </el-form-item>
-          <el-form-item label="目标类型">
-            <el-select v-model="form.targetType">
-              <el-option v-for="item in targetTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-        </div>
-
-        <el-form-item label="采集目标">
-          <el-input v-model="targetText" type="textarea" :rows="3" placeholder="每行一个关键词、账号 ID、内容 ID 或剧集 ID" />
-        </el-form-item>
-
-        <el-form-item label="请求能力">
-          <el-checkbox-group v-model="form.requestedCapabilities" class="collector-source-grid">
-            <el-checkbox-button v-for="item in capabilityOptions" :key="item.value" :label="item.value" :disabled="!item.available">
-              {{ item.label }}
-            </el-checkbox-button>
-          </el-checkbox-group>
-        </el-form-item>
-
-        <div class="collector-option-grid">
-          <el-form-item label="最大内容数"><el-input-number v-model="form.maxContents" :min="1" :max="5000" controls-position="right" /></el-form-item>
-          <el-form-item label="每内容最大互动数"><el-input-number v-model="form.maxInteractions" :min="0" :max="5000" controls-position="right" /></el-form-item>
-          <el-form-item label="并发 worker"><el-input-number v-model="form.workers" :min="1" :max="8" controls-position="right" /></el-form-item>
-          <el-form-item label="请求间隔秒"><el-input-number v-model="form.requestDelaySeconds" :min="0" :max="180" :step="0.5" controls-position="right" /></el-form-item>
-        </div>
-
-        <el-form-item label="扩展 options JSON">
-          <el-input v-model="optionsText" type="textarea" :rows="4" placeholder='例如 {"maxEpisodes":20,"includeReviews":true}' />
-        </el-form-item>
-
-        <div class="collector-actions">
-          <el-button :icon="Refresh" @click="loadTasks">刷新任务</el-button>
-          <el-button type="primary" :icon="Upload" :loading="submitting" @click="submitTask">下发任务</el-button>
-        </div>
+        <el-form-item label="视频或页面地址" required><el-input v-model.trim="jobForm.sourceUrl" placeholder="请输入爬虫平台可访问的视频或页面 URL" /></el-form-item>
+        <div class="collector-inline-grid"><el-form-item label="认证档案" required><el-select v-model="jobForm.authProfileId" placeholder="选择认证档案" :disabled="!status.configured"><el-option v-for="profile in profiles" :key="profile.profile_id" :label="`${profile.profile_name}（${profile.platform}）`" :value="profile.profile_id" :disabled="profile.status !== 'active'" /></el-select></el-form-item><el-form-item label="最大视频数"><el-input-number v-model="jobForm.videoLimit" :min="1" :max="500" controls-position="right" /></el-form-item></div>
+        <el-form-item label="策略参数 JSON"><el-input v-model="strategyText" type="textarea" :rows="5" placeholder='例如 {"max_root_comments":100,"fetch_all_danmaku":true}' /></el-form-item>
+        <div class="collector-actions"><el-button :icon="Refresh" :loading="loading" @click="load">刷新认证档案</el-button><el-button type="primary" :icon="Upload" :loading="submitting" :disabled="!status.configured" @click="submitJob">创建爬虫任务</el-button></div>
       </el-form>
     </section>
-
-    <section class="panel collector-help-panel">
-      <div class="panel-header"><div><div class="panel-title">连接器状态</div><div class="panel-desc">当前先验证任务逻辑，真实平台访问后续替换。</div></div></div>
-      <div class="collector-help">
-        <div><strong>任务协议</strong><span>schemaVersion 2.0</span></div>
-        <div><strong>拉取任务</strong><span>POST /api/collector/tasks/pull</span></div>
-        <div><strong>回传状态</strong><span>PUT /api/collector/tasks/{taskId}/status</span></div>
-        <div><strong>当前实现</strong><span>连接器和能力由平台注册表统一约束，worker 按任务合同执行。</span></div>
-      </div>
-    </section>
+    <section class="panel collector-help-panel"><div class="panel-header"><div><div class="panel-title">接口能力</div><div class="panel-desc">仅展示 openapi(2).json 已定义的任务能力。</div></div></div><div class="collector-help"><div><strong>已支持</strong><span>认证档案创建、校验、启停；创建、查询、取消、恢复爬虫任务。</span></div><div><strong>可采集数据</strong><span>视频指标、评论，以及弹幕或字幕等带时间文本。</span></div><div><strong>暂未提供</strong><span>关键词、账号、热门内容搜索与任务列表接口，因此本页面不展示相应功能。</span></div><div><strong>平台配置</strong><span>设置后端 CRAWLER_BASE_URL 和可选的 CRAWLER_API_KEY 后启用。</span></div></div></section>
   </section>
-
-  <section class="panel video-panel">
-    <div class="panel-header">
-      <div><div class="panel-title">采集任务流转</div><div class="panel-desc">展示最近任务及模拟或真实 worker 回传状态。</div></div>
-      <el-tag :type="activeTaskCount ? 'warning' : 'success'">{{ activeTaskCount ? `${activeTaskCount} 个进行中` : '暂无运行任务' }}</el-tag>
-    </div>
-    <el-table v-loading="loading" :data="tasks" empty-text="暂无采集任务" style="width: 100%" @row-click="selectTask">
-      <el-table-column prop="taskName" label="任务" min-width="220"><template #default="{ row }"><strong>{{ row.taskName }}</strong><div class="table-sub">{{ row.taskId }}</div></template></el-table-column>
-      <el-table-column prop="sourceType" label="平台" width="110" />
-      <el-table-column prop="status" label="状态" width="110"><template #default="{ row }"><el-tag :type="taskStatusType(row.status)">{{ taskStatusLabel(row.status) }}</el-tag></template></el-table-column>
-      <el-table-column prop="progress" label="进度" width="150"><template #default="{ row }"><el-progress :percentage="row.progress ?? 0" :stroke-width="8" /></template></el-table-column>
-      <el-table-column prop="rowCount" label="入库行数" width="120"><template #default="{ row }">{{ formatNumber(row.rowCount) }}</template></el-table-column>
-      <el-table-column prop="updatedAt" label="更新时间" width="180"><template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template></el-table-column>
-      <el-table-column label="操作" width="100"><template #default="{ row }"><el-button link type="danger" :disabled="isFinished(row.status)" @click.stop="cancelTask(row)">取消</el-button></template></el-table-column>
-    </el-table>
-  </section>
-
-  <section v-if="selectedTask" class="panel video-panel">
-    <div class="panel-header">
-      <div><div class="panel-title">任务详情</div><div class="panel-desc">{{ selectedTask.message || '等待 worker 回传状态' }}</div></div>
-      <el-button :icon="Refresh" @click="refreshSelectedTask">刷新详情</el-button>
-    </div>
-    <div class="collector-result-grid">
-      <div><span>原始数据</span><strong>{{ selectedTask.rawHdfsPath || '--' }}</strong></div>
-      <div><span>标准化数据</span><strong>{{ selectedTask.cleanHdfsPath || '--' }}</strong></div>
-      <div><span>批次号</span><strong>{{ selectedTask.batchId || '--' }}</strong></div>
-      <div><span>结果表</span><strong>{{ selectedTask.resultTables?.length ? selectedTask.resultTables.join(', ') : '--' }}</strong></div>
-    </div>
-    <div class="collector-detail-body">
-      <div><div class="collector-detail-title">自然语言需求</div><p>{{ selectedTask.naturalLanguage || '未填写' }}</p></div>
-      <div><div class="collector-detail-title">统一结构化参数</div><pre>{{ prettyParams(selectedTask.paramsJson) }}</pre></div>
-    </div>
-  </section>
+  <section class="panel video-panel"><div class="panel-header"><div><div class="panel-title">认证档案</div><div class="panel-desc">认证档案由爬虫平台保存，本平台不会读取或存储登录凭据。</div></div><el-button :disabled="!status.configured" @click="showProfileForm = !showProfileForm">{{ showProfileForm ? '收起' : '新建档案' }}</el-button></div><el-form v-if="showProfileForm" :model="profileForm" label-position="top" class="collector-form"><div class="collector-inline-grid"><el-form-item label="平台代码"><el-input v-model.trim="profileForm.platform" placeholder="例如 bilibili" /></el-form-item><el-form-item label="档案名称"><el-input v-model.trim="profileForm.profileName" placeholder="例如 默认登录档案" /></el-form-item></div><el-form-item label="浏览器档案目录"><el-input v-model.trim="profileForm.profileDirectory" placeholder="由爬虫平台所在机器可访问的目录" /></el-form-item><el-button type="primary" :loading="creatingProfile" @click="submitProfile">保存认证档案</el-button></el-form><el-table :data="profiles" empty-text="暂无认证档案" style="width:100%"><el-table-column prop="profile_name" label="档案名称" min-width="180" /><el-table-column prop="platform" label="平台" width="130" /><el-table-column prop="status" label="状态" width="120"><template #default="{ row }"><el-tag :type="profileStatusType(row.status)">{{ profileStatusLabel(row.status) }}</el-tag></template></el-table-column><el-table-column prop="last_verified_at" label="最近校验" width="180"><template #default="{ row }">{{ formatDateTime(row.last_verified_at) }}</template></el-table-column><el-table-column label="操作" width="210"><template #default="{ row }"><el-button link type="primary" @click="verifyProfile(row)">校验</el-button><el-button link :type="row.status === 'disabled' ? 'success' : 'warning'" @click="toggleProfile(row)">{{ row.status === 'disabled' ? '启用' : '停用' }}</el-button></template></el-table-column></el-table></section>
+  <section v-if="currentJob" class="panel video-panel" v-loading="jobLoading"><div class="panel-header"><div><div class="panel-title">当前爬虫任务</div><div class="panel-desc">{{ currentJob.job_id }}</div></div><div class="collector-actions"><el-button :icon="Refresh" @click="refreshJob">刷新</el-button><el-button type="warning" :disabled="!canResume" @click="resumeJob">恢复</el-button><el-button type="danger" :disabled="isFinished" @click="cancelJob">取消</el-button></div></div><div class="collector-result-grid"><div><span>状态</span><strong>{{ currentJob.status || '--' }}</strong></div><div><span>创建时间</span><strong>{{ formatDateTime(currentJob.created_at) }}</strong></div><div><span>开始时间</span><strong>{{ formatDateTime(currentJob.started_at) }}</strong></div><div><span>结束时间</span><strong>{{ formatDateTime(currentJob.finished_at) }}</strong></div></div><div class="collector-detail-body"><div><div class="collector-detail-title">任务进度</div><pre>{{ pretty(currentJob.progress) }}</pre></div><div><div class="collector-detail-title">模块状态</div><pre>{{ pretty(currentJob.module_states) }}</pre></div></div></section>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload } from '@element-plus/icons-vue'
-import { cancelCollectorTask, createCollectorTask, fetchCollectorTask, fetchCollectorTasks } from '@/api/collector'
-import { usePlatformContext } from '@/composables/usePlatformContext'
+import { cancelCrawlJob, createAuthProfile, createCrawlJob, fetchAuthProfiles, fetchCrawlJob, fetchCrawlerStatus, resumeCrawlJob, setAuthProfileEnabled, verifyAuthProfile } from '@/api/crawler'
 
-const allTargetTypeOptions = [
-  { label: '关键词', value: 'keyword' }, { label: '发布账号', value: 'account' },
-  { label: '指定内容', value: 'content' }, { label: '剧集', value: 'series' },
-  { label: '热门内容', value: 'popular' },
-]
-const capabilityLabels = { content: '内容', metrics: '指标', comments: '评论', danmaku: '弹幕', reviews: '评分/剧评', series: '剧集', completion_rate: '完播率', creator_metrics: '账号指标', official_heat: '官方热度' }
-
-const targetText = ref('')
-const optionsText = ref('{}')
-const submitting = ref(false)
-const loading = ref(false)
-const tasks = ref([])
-const selectedTask = ref(null)
-let timer = null
-const { platforms, loadingPlatforms, loadPlatforms } = usePlatformContext()
-const form = reactive({
-  taskName: '通用内容数据采集', naturalLanguage: '', platformCode: '',
-  connectorName: '', targetType: 'keyword',
-  requestedCapabilities: [], maxContents: 100,
-  maxInteractions: 50, workers: 2, requestDelaySeconds: 1, priority: 'normal',
-})
-const activeTaskCount = computed(() => tasks.value.filter((task) => !isFinished(task.status)).length)
-const platformOptions = computed(() => platforms.value.map((platform) => ({
-  label: platform.displayName,
-  value: platform.platformCode,
-  connector: platform.connectorName,
-  capabilities: platform.capabilities ?? {},
-})))
-const targetTypeOptions = computed(() => {
-  const platform = platformOptions.value.find((item) => item.value === form.platformCode)
-  return allTargetTypeOptions.filter((item) => item.value !== 'series' || platform?.capabilities?.series)
-})
-const capabilityOptions = computed(() => {
-  const platform = platformOptions.value.find((item) => item.value === form.platformCode)
-  const available = new Set(['content', 'metrics'])
-  Object.entries(platform?.capabilities ?? {}).forEach(([key, enabled]) => {
-    if (enabled && key in capabilityLabels) available.add(key)
-  })
-  return Object.entries(capabilityLabels).map(([value, label]) => ({ value, label, available: available.has(value) }))
-})
-
-onMounted(async () => {
-  try {
-    await loadPlatforms()
-    if (platformOptions.value.length) handlePlatformChange(platformOptions.value[0].value)
-  } catch (error) {
-    ElMessage.error(error.message || '平台注册数据加载失败')
-  }
-  loadTasks()
-  timer = window.setInterval(loadTasks, 5000)
-})
-onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
-
-function handlePlatformChange(platformCode) {
-  form.platformCode = platformCode
-  const platform = platformOptions.value.find((item) => item.value === platformCode)
-  form.connectorName = platform?.connector || `${platformCode}-default`
-  const available = new Set(capabilityOptions.value.filter((item) => item.available).map((item) => item.value))
-  form.requestedCapabilities = ['content', 'metrics'].filter((item) => available.has(item))
-  if (!available.has('series') && form.targetType === 'series') form.targetType = 'content'
-}
-
-async function submitTask() {
-  if (!form.platformCode) return ElMessage.warning('请先选择平台')
-  const targets = targetText.value.split(/[\n,，]+/).map((item) => item.trim()).filter(Boolean)
-  if (!targets.length && !form.naturalLanguage.trim()) return ElMessage.warning('请填写采集目标或自然语言需求')
-  let options
-  try { options = optionsText.value.trim() ? JSON.parse(optionsText.value) : {} } catch { return ElMessage.error('扩展 options 必须是合法 JSON') }
-  submitting.value = true
-  try {
-    const task = await createCollectorTask({
-      taskName: form.taskName, naturalLanguage: form.naturalLanguage, platformCode: form.platformCode,
-      sourceType: form.platformCode, connectorName: form.connectorName, targetType: form.targetType,
-      targets, requestedCapabilities: form.requestedCapabilities, priority: form.priority,
-      maxVideos: form.maxContents, maxCommentsPerVideo: form.maxInteractions, workers: form.workers,
-      commentDelay: form.requestDelaySeconds, options: { ...options, maxContents: form.maxContents, maxInteractionsPerContent: form.maxInteractions, workers: form.workers, requestDelaySeconds: form.requestDelaySeconds },
-    })
-    selectedTask.value = task
-    ElMessage.success('采集任务已下发')
-    await loadTasks()
-  } catch (error) { ElMessage.error(error.message || '采集任务下发失败') } finally { submitting.value = false }
-}
-
-async function loadTasks() { loading.value = true; try { tasks.value = await fetchCollectorTasks(); if (selectedTask.value) selectedTask.value = tasks.value.find((item) => item.taskId === selectedTask.value.taskId) ?? selectedTask.value } catch (error) { ElMessage.error(error.message || '任务加载失败') } finally { loading.value = false } }
-async function refreshSelectedTask() { if (selectedTask.value) selectedTask.value = await fetchCollectorTask(selectedTask.value.taskId) }
-function selectTask(task) { selectedTask.value = task }
-async function cancelTask(task) { try { await ElMessageBox.confirm(`确认取消任务「${task.taskName}」？`, '取消任务', { type: 'warning' }); await cancelCollectorTask(task.taskId); await loadTasks() } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '取消失败') } }
-function taskStatusType(status) { return { pending: 'info', dispatched: 'primary', running: 'warning', uploaded: 'warning', analyzing: 'warning', importing: 'warning', success: 'success', failed: 'danger', cancelled: 'info' }[status] ?? 'info' }
-function taskStatusLabel(status) { return { pending: '待领取', dispatched: '已下发', running: '采集中', uploaded: '已上传', analyzing: '分析中', importing: '入库中', success: '完成', failed: '失败', cancelled: '已取消' }[status] ?? status }
-function isFinished(status) { return ['success', 'failed', 'cancelled'].includes(status) }
-function formatDateTime(value) { return value ? String(value).replace('T', ' ').slice(0, 19) : '--' }
-function formatNumber(value) { return value == null ? '--' : Number(value).toLocaleString('zh-CN') }
-function prettyParams(value) { try { return JSON.stringify(JSON.parse(value || '{}'), null, 2) } catch { return value || '{}' } }
+const loading = ref(false); const submitting = ref(false); const creatingProfile = ref(false); const jobLoading = ref(false); const showProfileForm = ref(false); const profiles = ref([]); const currentJob = ref(null)
+const status = reactive({ configured: false, message: '正在检查爬虫平台配置' }); const jobForm = reactive({ sourceUrl: '', authProfileId: '', videoLimit: 1 }); const profileForm = reactive({ platform: '', profileName: '', profileDirectory: '' }); const strategyText = ref('{}')
+const isFinished = computed(() => ['completed', 'success', 'failed', 'cancelled', 'canceled'].includes(String(currentJob.value?.status || '').toLowerCase())); const canResume = computed(() => ['failed', 'cancelled', 'canceled'].includes(String(currentJob.value?.status || '').toLowerCase()))
+onMounted(load)
+async function load() { loading.value = true; try { Object.assign(status, await fetchCrawlerStatus()); profiles.value = status.configured ? await fetchAuthProfiles() : [] } catch (error) { ElMessage.error(error.message || '爬虫平台状态读取失败') } finally { loading.value = false } }
+async function submitJob() { if (!jobForm.sourceUrl || !jobForm.authProfileId) return ElMessage.warning('请填写页面地址并选择认证档案'); let strategy; try { strategy = strategyText.value.trim() ? JSON.parse(strategyText.value) : {} } catch { return ElMessage.error('策略参数必须是合法 JSON') } submitting.value = true; try { currentJob.value = await createCrawlJob({ source_url: jobForm.sourceUrl, auth_profile_id: jobForm.authProfileId, video_limit: jobForm.videoLimit, strategy }); ElMessage.success('爬虫任务已创建') } catch (error) { ElMessage.error(error.message || '创建爬虫任务失败') } finally { submitting.value = false } }
+async function submitProfile() { if (!profileForm.platform || !profileForm.profileName || !profileForm.profileDirectory) return ElMessage.warning('请完整填写认证档案信息'); creatingProfile.value = true; try { await createAuthProfile({ platform: profileForm.platform, profile_name: profileForm.profileName, profile_directory: profileForm.profileDirectory }); Object.assign(profileForm, { platform: '', profileName: '', profileDirectory: '' }); showProfileForm.value = false; await load(); ElMessage.success('认证档案已创建') } catch (error) { ElMessage.error(error.message || '创建认证档案失败') } finally { creatingProfile.value = false } }
+async function verifyProfile(profile) { try { await verifyAuthProfile(profile.profile_id); await load(); ElMessage.success('认证档案已校验') } catch (error) { ElMessage.error(error.message || '认证档案校验失败') } }
+async function toggleProfile(profile) { try { await setAuthProfileEnabled(profile.profile_id, profile.status === 'disabled'); await load(); ElMessage.success(profile.status === 'disabled' ? '认证档案已启用' : '认证档案已停用') } catch (error) { ElMessage.error(error.message || '认证档案状态更新失败') } }
+async function refreshJob() { if (!currentJob.value?.job_id) return; jobLoading.value = true; try { currentJob.value = await fetchCrawlJob(currentJob.value.job_id) } catch (error) { ElMessage.error(error.message || '任务查询失败') } finally { jobLoading.value = false } }
+async function cancelJob() { try { await ElMessageBox.confirm('确认取消当前爬虫任务？', '取消任务', { type: 'warning' }); currentJob.value = await cancelCrawlJob(currentJob.value.job_id); ElMessage.success('任务已取消') } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '取消任务失败') } }
+async function resumeJob() { try { currentJob.value = await resumeCrawlJob(currentJob.value.job_id); ElMessage.success('任务已恢复') } catch (error) { ElMessage.error(error.message || '恢复任务失败') } }
+function profileStatusType(value) { return { active: 'success', expired: 'warning', disabled: 'info' }[value] || 'info' }; function profileStatusLabel(value) { return { active: '可用', expired: '已过期', disabled: '已停用' }[value] || value || '--' }; function formatDateTime(value) { return value ? String(value).replace('T', ' ').slice(0, 19) : '--' }; function pretty(value) { return JSON.stringify(value || {}, null, 2) }
 </script>

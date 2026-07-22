@@ -1,5 +1,7 @@
 package com.bililens.analytics;
 
+import com.bililens.analytics.crawler.CrawlerPlatformProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
@@ -12,6 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @EnableCaching
 @EnableScheduling
 @SpringBootApplication
+@EnableConfigurationProperties(CrawlerPlatformProperties.class)
 public class AnalyticsApiApplication {
 
     public static void main(String[] args) {

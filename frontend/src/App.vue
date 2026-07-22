@@ -50,7 +50,6 @@ import { navItems } from '@/data/dashboard'
 import { refreshTasks } from '@/api/tasks'
 import { createReportHistory, fetchAnomalyRules, fetchDataSourceStatuses, fetchMetricConfigs, fetchPlatformConfigs, fetchReportHistory } from '@/api/platform'
 import { fetchAccountPerformance, fetchContent, fetchMetricComparison, fetchMetricDefinitions, fetchPagedContents } from '@/api/content'
-import { fetchCollectorTasks } from '@/api/collector'
 import { exportExcelWorkbook } from '@/utils/exportExcel'
 import { usePlatformContext } from '@/composables/usePlatformContext'
 import { useUnifiedAnalytics } from '@/composables/useUnifiedAnalytics'
@@ -78,7 +77,7 @@ const moduleCopy = {
   comment: ['互动洞察', '分析评论、回复、剧评及其情感覆盖情况。'],
   creator: ['账号表现', '比较创作者、频道和发行方的内容表现。'],
   task: ['任务中心', '跟踪由分析结果生成的运营工作。'],
-  collector: ['数据采集', '创建受平台连接器约束的采集任务。'],
+  collector: ['数据采集', '通过已接入的爬虫平台创建和管理网页采集任务。'],
   dataSource: ['数据监控', '监控 v2 数据覆盖率、新鲜度和采集健康状态。'],
   platformConfig: ['平台管理', '管理平台连接器、启用状态和数据能力。'],
   metricConfig: ['指标管理', '管理指标中文名称、口径、单位和跨平台可比性。'],
@@ -93,7 +92,7 @@ const exportCopy = {
   comment: ['互动洞察报表', '导出当前 v2 互动分析结果。', '导出报表', true],
   creator: ['创作者画像报表', '导出当前平台范围内的账号表现。', '导出报表', true],
   task: ['任务报表', '导出当前运营任务。', '导出报表', true],
-  collector: ['采集任务报表', '导出采集任务及其处理状态。', '导出报表', true],
+  collector: ['采集任务报表', '爬虫平台未提供任务列表接口，暂不支持导出。', '暂不可导出', false],
   dataSource: ['数据监控报表', '导出 v2 数据源与平台采集状态。', '导出报表', true],
   reportCenter: ['报表历史', '导出报表历史记录。', '导出报表', true],
   anomalyRule: ['规则配置', '导出预警规则。', '导出报表', true],
@@ -209,7 +208,6 @@ async function buildReportSheets(module) {
   }
   if (module === 'creator') return [sheet('账号表现', ['accountId', 'platformCode', 'displayName', 'accountType', 'contentCount', 'totalViewCount', 'totalLikeCount', 'averageNormalizedHeat'], await fetchAccountPerformance({ platform }))]
   if (module === 'task') return [sheet('运营任务', ['taskId', 'title', 'level', 'type', 'status', 'text', 'contentId', 'platformCode', 'externalContentId', 'source', 'sortNo', 'updatedAt'], await refreshTasks())]
-  if (module === 'collector') return [sheet('采集任务', ['taskId', 'taskName', 'platformCode', 'connectorName', 'targetType', 'status', 'progress', 'rowCount', 'batchId', 'message', 'createdAt', 'updatedAt'], await fetchCollectorTasks())]
   if (module === 'dataSource') return [sheet('数据源状态', ['tableName', 'displayName', 'layer', 'rowCount', 'latestAt', 'status', 'message'], await fetchDataSourceStatuses())]
   if (module === 'platformConfig') return [sheet('平台配置', ['platformCode', 'displayName', 'connectorName', 'capabilities', 'enabled', 'updatedAt'], await fetchPlatformConfigs())]
   if (module === 'metricConfig') return [sheet('指标配置', ['metricKey', 'displayName', 'definition', 'unit', 'comparable', 'enabled', 'updatedAt'], await fetchMetricConfigs())]

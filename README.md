@@ -1,44 +1,68 @@
-# 通用视频数据可视化平台
+# 通用视频网站数据可视化平台
 
-本项目面向多个视频平台提供统一的数据分析能力。内容、账号、指标快照、时序互动、评论、回复和剧评均使用同一套 v2 数据模型。历史哔哩哔哩数据可以迁移，但不再是默认运行模式。
+面向多视频平台的内容、互动、情感和账号数据分析系统。平台以统一数据模型为核心，不依赖 BVID、UP 主、投币等单一平台概念；平台特有字段保留在原始属性或扩展指标中。
 
-## 项目组成
+## 系统边界
 
-- `frontend`：Vue 3、Vite、Element Plus、ECharts 前端界面。
-- `backend`：提供 `/api/v2` 的 Spring Boot 服务。
-- `bilibili_data_pipeline`：v2 JSONL 规范化与 MySQL 导入工具。目录名称为兼容历史保留，导入器可处理任意平台映射。
+| 组件 | 职责 |
+| --- | --- |
+| 爬虫平台 | 按 URL 创建任务，管理认证档案，提供视频指标、评论与带时间文本数据。 |
+| 数据清洗与分析 | 保存原始响应，转换 v2 JSONL，计算情感、关键词和归一化热度，导入 MySQL。 |
+| 本项目后端 | 查询标准数据、提供分析 API、平台代理爬虫任务和配置管理。 |
+| 本项目前端 | 展示内容分析、指标对比、互动洞察、账号画像和报表导出。 |
 
-## 快速启动
+完整字段、入库顺序和验收标准见 [数据清洗与分析对接指南](docs/数据清洗与分析对接指南.md)。
 
-新部署请创建通用 v2 数据库，不要对新库执行旧版 `schema.sql`：
+## 主要能力
+
+- 多平台内容、账号、指标快照和互动数据查询。
+- 内容复盘：指标、互动情感、弹幕/字幕等时间文本按平台能力降级展示。
+- 统一指标字典与跨平台可比性标记。
+- 评论、回复、剧评和弹幕的情感、关键词分析。
+- 平台、指标、预警规则和报表历史管理。
+- Excel 导出当前页面数据；爬虫任务因上游未提供任务列表接口，不支持历史导出。
+- 爬虫平台代理：认证档案创建/校验/启停，任务创建/查询/取消/恢复。
+
+## 目录
+
+```text
+frontend/                    Vue 3 可视化界面
+backend/                     Spring Boot API 与 MySQL 查询层
+backend/sql/mysql/schema_v2.sql  新库完整结构和基础字典
+docs/                        数据协议与对接文档
+bilibili_data_pipeline/      历史命名保留的数据规范化、分析与导入工具
+openapi(2).json              爬虫平台 OpenAPI 定义
+```
+
+## 新环境启动
+
+### 1. 创建数据库
 
 ```powershell
-mysql -u root -p -e "create database if not exists video_analytics default character set utf8mb4 collate utf8mb4_unicode_ci;"
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS video_analytics DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root -p video_analytics < backend\sql\mysql\schema_v2.sql
 ```
 
-可选导入演示数据：
-
-```powershell
-cd bilibili_data_pipeline
-$env:ANALYTICS_DB_NAME="video_analytics"
-python src\bootstrap_v2_mysql.py
-```
-
-启动后端：
+### 2. 配置并启动后端
 
 ```powershell
 cd backend
-mvn spring-boot:run
+$env:ANALYTICS_DB_NAME = "video_analytics"
+$env:MYSQL_USERNAME = "root"
+$env:MYSQL_PASSWORD = "你的数据库密码"
+
+# 爬虫服务可用时再设置；未设置时采集页会显示“暂未接入”。
+$env:CRAWLER_BASE_URL = "http://crawler-host:port"
+$env:CRAWLER_API_KEY = "可选的 API Key"
+
+mvn clean spring-boot:run
 ```
 
-现有本地环境默认连接 `bilibili_analysis` 以保持兼容。新库请在启动前设置：
+后端地址：`http://localhost:8080`，健康检查：`http://localhost:8080/actuator/health`。
 
-```powershell
-$env:ANALYTICS_DB_NAME="video_analytics"
-```
+> IDE 必须使用 JDK 17。若出现 `class file version 65.0`，停止 IDE 的 Java 21 自动编译，执行 `mvn clean` 后重新启动。
 
-启动前端：
+### 3. 启动前端
 
 ```powershell
 cd frontend
@@ -46,15 +70,15 @@ npm install
 npm run dev
 ```
 
-访问地址：`http://localhost:5173`。
+访问 `http://localhost:5173`。
 
-## 导入协议
+## 数据导入
 
-所有来源先规范化为四个 JSONL 文件：
+清洗端每个批次输出以下四个 UTF-8 JSONL 文件：
 
 ```text
-contents.jsonl
 accounts.jsonl
+contents.jsonl
 metric_snapshots.jsonl
 interactions.jsonl
 ```
@@ -63,42 +87,11 @@ interactions.jsonl
 
 ```powershell
 cd bilibili_data_pipeline
-$env:ANALYTICS_DB_NAME="video_analytics"
+$env:ANALYTICS_DB_NAME = "video_analytics"
 python src\import_v2_to_mysql.py --input-dir path\to\v2-export
 ```
 
-CSV 来源可使用 `normalize_to_v2.py`。脚本内置历史哔哩哔哩字段映射，也支持其他平台提供 JSON 映射文件：
-
-```powershell
-python src\normalize_to_v2.py --input-dir path\to\csv --output-dir output\douyin `
-  --platform-code douyin --connector-name douyin-approved-export-v1 `
-  --mapping-file mappings\douyin.json
-```
-
-映射文件把 `content_id`、`title`、`account_id`、`comment_id`、`video_time_seconds` 和 `metrics` 等统一字段映射到 CSV 列。未知数值指标会写入 `extra_metrics`，导入后可在“指标对比”页面使用。
-
-## 历史数据迁移
-
-已有哔哩哔哩 ADS/DWD/DWS 数据库可执行：
-
-```powershell
-cd bilibili_data_pipeline
-python src\bootstrap_v2_mysql.py --include-legacy
-```
-
-旧版接口已经移除。历史数据迁移到 v2 表后即可在当前应用中使用。
-
-## 创建新库并复制现有数据
-
-如果要创建 `video_analytics` 并完整保留当前 `bilibili_analysis` 中的 v2 数据，请依次执行：
-
-```powershell
-mysql -u root -p -e "create database if not exists video_analytics default character set utf8mb4 collate utf8mb4_unicode_ci;"
-mysql -u root -p video_analytics < backend\sql\mysql\schema_v2.sql
-mysql -u root -p < backend\sql\mysql\clone_v2_from_bilibili_analysis.sql
-```
-
-复制脚本仅复制 v2 内容、指标、互动、情感和运营数据，不会把旧 ADS/DWD 表复制到新库。
+数据协议位于 [unified_data_contract_v2.md](docs/unified_data_contract_v2.md)。不要向新库写入旧版 ADS/DWD/DWS 表，也不要把不支持的指标填为 `0`。
 
 ## 验证
 
@@ -108,7 +101,8 @@ mvn clean test
 
 cd ..\frontend
 npm run build
-
-cd ..\bilibili_data_pipeline
-python -m pytest tests
 ```
+
+## 爬虫接口约束
+
+本项目按根目录 `openapi(2).json` 对接爬虫平台。上游当前不提供关键词搜索、账号搜索、热门内容、任务列表和直接导入接口，因此界面不会展示这些功能。采集结果须由数据清洗与分析链路完成规范化和入库后，才会出现在可视化页面。

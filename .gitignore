@@ -18,3 +18,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .ui-check
+openapi(2).json
+openapi(1).json
+docs/数据清洗与分析对接指南.md
