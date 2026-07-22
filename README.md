@@ -30,7 +30,6 @@ frontend/                    Vue 3 可视化界面
 backend/                     Spring Boot API 与 MySQL 查询层
 backend/sql/mysql/schema_v2.sql  新库完整结构和基础字典
 docs/                        数据协议与对接文档
-bilibili_data_pipeline/      历史命名保留的数据规范化、分析与导入工具
 openapi(2).json              爬虫平台 OpenAPI 定义
 ```
 
@@ -72,9 +71,9 @@ npm run dev
 
 访问 `http://localhost:5173`。
 
-## 数据导入
+## 数据交接
 
-清洗端每个批次输出以下四个 UTF-8 JSONL 文件：
+清洗分析团队每个批次交付以下四个 UTF-8 JSONL 文件：
 
 ```text
 accounts.jsonl
@@ -83,15 +82,7 @@ metric_snapshots.jsonl
 interactions.jsonl
 ```
 
-导入命令：
-
-```powershell
-cd bilibili_data_pipeline
-$env:ANALYTICS_DB_NAME = "video_analytics"
-python src\import_v2_to_mysql.py --input-dir path\to\v2-export
-```
-
-数据协议位于 [unified_data_contract_v2.md](docs/unified_data_contract_v2.md)。不要向新库写入旧版 ADS/DWD/DWS 表，也不要把不支持的指标填为 `0`。
+数据合同、质量要求和交付清单见 [数据清洗与分析对接指南](docs/数据清洗与分析对接指南.md)。本项目不负责清洗分析实现；平台侧按交付合同安排入库。不要向新库写入旧版 ADS/DWD/DWS 表，也不要把不支持的指标填为 `0`。
 
 ## 验证
 
