@@ -28,6 +28,7 @@ class TaskStatusControllerTest {
 
     @Test
     void taskStatusesCanBeCreatedAndListed() throws Exception {
+        insertTask("test-task-1", null, null, null);
         mockMvc.perform(put("/api/tasks/statuses/test-task-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"doing\"}"))
@@ -44,11 +45,7 @@ class TaskStatusControllerTest {
 
     @Test
     void tasksReturnPersistedTaskContentWithStatus() throws Exception {
-        jdbcClient.sql("""
-                        insert into ops_task (task_id, title, level, type, text, bvid, source, sort_no, is_active)
-                        values ('task-list-test', '测试任务', '高优先级', 'warning', '测试说明', 'BV003', 'test', 1, 1)
-                        """)
-                .update();
+        insertTask("task-list-test", 1L, "bilibili", "BV003");
 
         mockMvc.perform(put("/api/tasks/statuses/task-list-test")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -58,22 +55,24 @@ class TaskStatusControllerTest {
         mockMvc.perform(get("/api/tasks"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data[0].taskId").value("task-list-test"))
-                .andExpect(jsonPath("$.data[0].title").value("测试任务"))
-                .andExpect(jsonPath("$.data[0].status").value("doing"));
+                .andExpect(jsonPath("$.data[*].taskId", hasItem("task-list-test")))
+                .andExpect(jsonPath("$.data[?(@.taskId == 'task-list-test')].contentId", hasItem(1)))
+                .andExpect(jsonPath("$.data[?(@.taskId == 'task-list-test')].status", hasItem("doing")));
     }
 
     @Test
-    void refreshTasksGeneratesTasksFromAnalysisTables() throws Exception {
+    void refreshTasksGeneratesTasksFromUnifiedContent() throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/tasks/refresh"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data[*].source", hasItem("auto")))
-                .andExpect(jsonPath("$.data[*].taskId", hasItem("auto-review-top-video-BV003")));
+                .andExpect(jsonPath("$.data[*].taskId", hasItem("auto-review-content-3")))
+                .andExpect(jsonPath("$.data[*].contentId", hasItem(3)));
     }
 
     @Test
     void taskStatusCanBeUpdated() throws Exception {
+        insertTask("test-task-2", null, null, null);
         mockMvc.perform(put("/api/tasks/statuses/test-task-2")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"doing\"}"))
@@ -89,10 +88,33 @@ class TaskStatusControllerTest {
 
     @Test
     void taskStatusRejectsInvalidStatus() throws Exception {
+        insertTask("test-task-3", null, null, null);
         mockMvc.perform(put("/api/tasks/statuses/test-task-3")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"bad\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void taskStatusRejectsUnknownTask() throws Exception {
+        mockMvc.perform(put("/api/tasks/statuses/missing-task")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"doing\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("运营任务不存在")));
+    }
+
+    private void insertTask(String taskId, Long contentId, String platformCode, String externalContentId) {
+        jdbcClient.sql("""
+                        insert into ops_task
+                        (task_id, title, level, type, text, content_id, platform_code, external_content_id, bvid, source, sort_no, is_active)
+                        values (:taskId, '测试任务', '高优先级', 'warning', '测试说明', :contentId, :platformCode, :externalContentId, 'BV003', 'test', 1, 1)
+                        """)
+                .param("taskId", taskId)
+                .param("contentId", contentId)
+                .param("platformCode", platformCode)
+                .param("externalContentId", externalContentId)
+                .update();
     }
 }

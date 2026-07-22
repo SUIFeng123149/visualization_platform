@@ -8,6 +8,8 @@ import com.bililens.analytics.content.dto.CommentTrendPointDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
 import com.bililens.analytics.content.dto.KeywordDto;
+import com.bililens.analytics.content.dto.MetricComparisonDto;
+import com.bililens.analytics.content.dto.MetricDefinitionDto;
 import com.bililens.analytics.content.dto.PlatformDto;
 import com.bililens.analytics.content.dto.PagedNegativeInteractionResponse;
 import com.bililens.analytics.content.dto.SentimentSummaryDto;
@@ -117,6 +119,20 @@ public class ContentController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit
     ) {
         return ApiResponse.ok(contentService.getKeywords(platform, contentId, limit));
+    }
+
+    @GetMapping("/analytics/metric-definitions")
+    public ApiResponse<List<MetricDefinitionDto>> getMetricDefinitions() {
+        return ApiResponse.ok(contentService.getMetricDefinitions());
+    }
+
+    @GetMapping("/analytics/metric-comparison")
+    public ApiResponse<List<MetricComparisonDto>> getMetricComparison(
+            @RequestParam @Size(max = 64) String metricKey,
+            @RequestParam(required = false) @Size(max = 32) String platform,
+            @RequestParam(required = false) @Size(max = 32) String contentType
+    ) {
+        return ApiResponse.ok(contentService.getMetricComparison(metricKey, platform, contentType));
     }
 
     @GetMapping("/analytics/comments/summary")

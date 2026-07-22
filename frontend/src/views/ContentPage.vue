@@ -64,7 +64,7 @@
       <el-table-column label="指标时间" width="178" align="center" header-align="center">
         <template #default="{ row }">{{ formatDateTime(row.metricsCapturedAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="108" align="center" header-align="center">
+      <el-table-column label="操作" width="112" align="center" header-align="center">
         <template #default="{ row }">
           <el-button link type="primary" @click="openContent(row.contentId)">进入复盘</el-button>
         </template>
@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchPagedContents } from '@/api/content'
@@ -129,6 +129,9 @@ onMounted(async () => {
     ElMessage.error(error.message || '平台数据加载失败')
   }
 })
+
+onMounted(() => window.addEventListener('bililens:refresh-unified', loadContents))
+onBeforeUnmount(() => window.removeEventListener('bililens:refresh-unified', loadContents))
 
 watch(selectedPlatform, () => {
   const nextType = selectedPlatform.value === 'all' ? contentType.value : contentType.value
@@ -297,4 +300,5 @@ function openContent(contentId) {
     },
   })
 }
+
 </script>

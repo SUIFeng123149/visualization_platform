@@ -26,6 +26,7 @@
 
         <div class="task-meta">
           <span>来源：{{ sourceLabel(item.source) }}</span>
+          <span v-if="item.contentId">内容：{{ item.platformCode || '--' }} · {{ item.externalContentId || item.contentId }}</span>
           <span v-if="item.updatedAt">任务更新：{{ formatDateTime(item.updatedAt) }}</span>
           <span v-if="item.statusUpdatedAt">状态更新：{{ formatDateTime(item.statusUpdatedAt) }}</span>
         </div>
@@ -37,12 +38,13 @@
             size="small"
             @update:model-value="updateStatus(item.taskId, $event)"
           />
-          <el-button v-if="item.bvid" link type="primary" @click="openVideo(item.bvid)">查看复盘</el-button>
+          <el-button v-if="item.contentId" link type="primary" @click="openContent(item.contentId)">查看复盘</el-button>
+          <el-button v-else-if="item.bvid" link type="primary" @click="openLegacyVideo(item.bvid)">查看旧版复盘</el-button>
         </div>
       </article>
 
       <section v-if="!loading && taskCards.length === 0" class="empty-state">
-        暂无运营任务。点击右上角“刷新数据”后，系统会基于热度、情感、弹幕和UP主表现自动生成任务。
+        暂无运营任务。点击右上角“刷新数据”后，系统会基于内容热度、情感和互动高峰自动生成任务。
       </section>
     </section>
   </section>
@@ -77,7 +79,7 @@ const taskAiContext = computed(() => ({
 const taskPrompts = [
   '诊断当前任务中心的主要异常',
   '给这些任务排一个处理优先级',
-  '哪些任务需要进入视频复盘',
+  '哪些任务需要进入内容复盘',
   '把任务整理成今日运营动作清单',
 ]
 
@@ -123,8 +125,12 @@ async function updateStatus(taskId, status) {
   }
 }
 
-function openVideo(bvid) {
-  router.push({ name: 'videoDetail', params: { bvid }, query: { from: 'task' } })
+function openContent(contentId) {
+  router.push({ name: 'contentDetail', params: { contentId }, query: { from: 'task' } })
+}
+
+function openLegacyVideo(bvid) {
+  router.push({ name: 'contents', query: { keyword: bvid, legacy: 'bvid', from: 'task' } })
 }
 
 function sourceLabel(source) {

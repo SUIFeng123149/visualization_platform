@@ -20,6 +20,7 @@ drop table if exists dim_platform;
 create table dim_platform (
     platform_code varchar(32) primary key,
     display_name varchar(64) not null,
+    connector_name varchar(128) not null,
     capabilities_json clob not null,
     enabled smallint default 1 not null
 );
@@ -57,6 +58,15 @@ create table fact_content_metric_snapshot (
     coin_count bigint,
     platform_heat_score double,
     normalized_heat_score double
+);
+
+create table metric_dictionary (
+    metric_key varchar(64) primary key,
+    display_name varchar(128) not null,
+    unit varchar(32),
+    scope varchar(32) not null,
+    definition clob,
+    comparable smallint default 0 not null
 );
 
 create table fact_interaction (
@@ -215,6 +225,9 @@ create table ops_task (
     level varchar(32) not null,
     type varchar(32) not null,
     text clob not null,
+    content_id bigint,
+    platform_code varchar(32),
+    external_content_id varchar(255),
     bvid varchar(32),
     source varchar(64) default 'system' not null,
     sort_no int default 100 not null,

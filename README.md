@@ -116,10 +116,11 @@ visualization_platform/
 ```powershell
 mysql -u root -p -e "create database if not exists bilibili_analysis default character set utf8mb4 collate utf8mb4_unicode_ci;"
 mysql -u root -p bilibili_analysis < backend\sql\mysql\schema.sql
+mysql -u root -p bilibili_analysis < backend\sql\mysql\migration_v2_unified.sql
 mysql -u root -p bilibili_analysis < backend\sql\mysql\placeholder-data.sql
 ```
 
-`placeholder-data.sql` 仅用于本地演示。真实数据应由 `bilibili_data_pipeline` 生成并导入。
+`migration_v2_unified.sql` 创建通用内容、指标快照和互动表，是默认跨平台界面的必需步骤。`placeholder-data.sql` 仅用于旧版 B 站界面演示；真实数据应由数据管道按 v2 契约生成并导入。
 
 ### 2. 启动后端
 

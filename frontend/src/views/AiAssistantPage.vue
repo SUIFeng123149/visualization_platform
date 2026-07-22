@@ -43,10 +43,10 @@
         </div>
       </div>
       <div class="config-list">
-        <code>视频样本</code>
-        <span>{{ platformContext.videoCount }} 个，当前筛选 {{ platformContext.visibleVideoCount }} 个。</span>
-        <code>情感样本</code>
-        <span>{{ platformContext.sentimentCount }} 个视频有情感统计，缺失 {{ platformContext.missingSentimentCount }} 个。</span>
+        <code>内容样本</code>
+        <span>{{ platformContext.contentCount }} 个，覆盖 {{ platformContext.platformCount }} 个平台。</span>
+        <code>统一互动</code>
+        <span>当前趋势窗口聚合 {{ platformContext.interactionCount }} 条互动。</span>
         <code>关键词</code>
         <span>{{ platformContext.keywords.length ? platformContext.keywords.map((item) => item.word).join('、') : '暂无关键词' }}</span>
         <code>Dify配置</code>
@@ -63,11 +63,12 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { consumeAssistantStream } from '@/api/ai'
-import { getInteractions, useDashboardData } from '@/composables/useDashboardData'
+import { useUnifiedAnalytics } from '@/composables/useUnifiedAnalytics'
+import { usePlatformContext } from '@/composables/usePlatformContext'
 
 const md = new MarkdownIt({
   html: false,
@@ -76,16 +77,8 @@ const md = new MarkdownIt({
   breaks: true,
 })
 
-const {
-  filters,
-  heatRank,
-  visibleHeatRank,
-  videoSentiments,
-  keywords,
-  danmakuHotspots,
-  dataQuality,
-  globalInsights,
-} = useDashboardData()
+const { contents, trends, keywords, accounts, summary, loadUnifiedAnalytics } = useUnifiedAnalytics()
+const { selectedPlatform } = usePlatformContext()
 
 const loading = ref(false)
 const query = ref('')
@@ -102,26 +95,33 @@ const messages = ref([
 
 const platformContext = computed(() => ({
   page: 'AI助手',
-  filters: { ...filters },
-  videoCount: heatRank.value.length,
-  visibleVideoCount: visibleHeatRank.value.length,
-  sentimentCount: videoSentiments.value.length,
-  missingSentimentCount: dataQuality.value.missingSentimentCount,
-  dataQuality: dataQuality.value,
-  topVideos: visibleHeatRank.value.slice(0, 10).map((item) => ({
-    bvid: item.bvid,
+  filters: {
+    platform: selectedPlatform.value,
+  },
+  platform: selectedPlatform.value,
+  contentCount: summary.value.contentCount,
+  platformCount: summary.value.platformCount,
+  totalViews: summary.value.totalViews,
+  averageNormalizedHeat: summary.value.averageNormalizedHeat,
+  interactionCount: summary.value.interactionCount,
+  topContents: contents.value.slice(0, 10).map((item) => ({
+    contentId: item.contentId,
+    platformCode: item.platformCode,
+    externalContentId: item.externalContentId,
     title: item.title,
-    upName: item.upName,
+    accountName: item.accountName,
     category: item.category,
     viewCount: item.viewCount,
-    heatScore: Math.round(item.heatScore || 0),
-    interactionCount: getInteractions(item),
+    normalizedHeatScore: item.normalizedHeatScore,
   })),
-  sentiments: videoSentiments.value.slice(0, 10),
   keywords: keywords.value.slice(0, 12),
-  danmakuHotspots: danmakuHotspots.value.slice(0, 8),
-  insights: globalInsights.value,
+  trends: trends.value.slice(0, 30),
+  accounts: accounts.value.slice(0, 10),
 }))
+
+onMounted(() => {
+  loadUnifiedAnalytics().catch((error) => ElMessage.warning(error.message || '统一分析数据加载失败'))
+})
 
 const quickPrompts = [
   '解读当前平台的整体数据表现',

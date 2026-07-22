@@ -1,5 +1,5 @@
 <template>
-  <el-container class="app-shell" v-loading="loading">
+  <el-container class="app-shell">
     <AppSidebar
       :items="navItems"
       :active-key="activeModule"
@@ -30,7 +30,7 @@
           class="export-button"
           type="success"
           :icon="Download"
-          :disabled="['overview', 'contents', 'creator', 'aiAssistant', 'collector'].includes(activeModule)"
+          :disabled="['overview', 'contents', 'metrics', 'creator', 'aiAssistant', 'collector'].includes(activeModule)"
           @click="handleExportReport"
         >
           {{ exportMeta.buttonText }}
@@ -58,6 +58,7 @@ import { refreshTasks } from '@/api/tasks'
 import { createReportHistory, fetchAnomalyRules, fetchDataSourceStatuses, fetchReportHistory } from '@/api/platform'
 import { exportExcelWorkbook } from '@/utils/exportExcel'
 import { usePlatformContext } from '@/composables/usePlatformContext'
+import { useUnifiedAnalytics } from '@/composables/useUnifiedAnalytics'
 import { useCommentInsights } from '@/composables/useCommentInsights'
 import {
   average,
@@ -69,7 +70,6 @@ import {
 
 const {
   activeModule,
-  loading,
   filters,
   heatRank,
   visibleHeatRank,
@@ -85,6 +85,7 @@ const {
 } = useDashboardData({ autoLoad: false })
 
 const { platforms, selectedPlatform, loadingPlatforms, loadPlatforms } = usePlatformContext()
+const { loadUnifiedAnalytics } = useUnifiedAnalytics()
 const {
   summary: commentSummary,
   trends: commentTrends,
@@ -121,11 +122,12 @@ const moduleCopy = {
   overview: ['数据总览', '聚合视频热度、弹幕、评论情感和 UP 主表现，快速判断整体增长状态。'],
   video: ['视频分析', '围绕单个视频拆解播放、互动、热度和口碑，定位爆款与待优化内容。'],
   contents: ['内容分析', '统一查看抖音、哔哩哔哩、爱奇艺和优酷的内容表现与可比指标。'],
+  metrics: ['指标对比', '按统一指标字典查看各平台最新内容快照；平台特有指标仅在平台内比较。'],
   danmaku: ['弹幕分析', '用时间轴识别观众集中反应片段，辅助剪辑、复盘和内容解释。'],
   comment: ['评论洞察', '分析评论情感结构和负面样本，服务舆情处理与用户反馈归因。'],
   creator: ['发布账号', '横向比较创作者、频道和发行方的内容规模与归一化热度。'],
   task: ['任务中心', '把数据发现转成运营动作，沉淀可执行的分析工作流。'],
-  collector: ['数据采集', '配置 B 站公开数据采集任务，按热门、首页、UP 主或关键词抓取视频、评论和弹幕。'],
+  collector: ['数据采集', '按平台连接器配置受控数据源、内容目标和所需能力；不支持的能力不会进入采集请求。'],
   dataSource: ['数据监控', '监控各层数据表的数据量、更新时间和可访问状态，保证图表可信。'],
   reportCenter: ['报表中心', '沉淀报表生成历史，统一管理导出记录和后续下载链路。'],
   anomalyRule: ['规则管理', '配置异常检测阈值，为热度、情感、互动和弹幕预警提供规则基础。'],
@@ -135,6 +137,7 @@ const moduleCopy = {
 const exportCopy = {
   overview: ['统一总览报表', 'v2 统一报表等待真实 ADS 表落地后开放。', '暂不可导出'],
   contents: ['统一内容报表', '统一内容导出将在 v2 ADS 导入完成后开放。', '暂不可导出'],
+  metrics: ['统一指标对比报表', '指标对比当前用于交互分析，导出将在指标快照治理完成后开放。', '暂不可导出'],
   video: ['视频专项报表', '导出视频热度排行和情感统计，用于内容复盘。', '导出视频专项'],
   videoDetail: ['单视频复盘报表', '导出当前视频的基础指标、情感、弹幕、关键词、负面评论和运营建议。', '导出当前视频'],
   danmaku: ['弹幕专项报表', '导出当前视频的弹幕高峰时间点、弹幕数、情感和关键词。', '导出弹幕专项'],
@@ -159,7 +162,7 @@ const metricDefinitions = [
 watch(
   () => route.name,
   (name) => {
-    const moduleName = name === 'videoDetail' ? 'video' : name === 'contentDetail' ? 'contents' : name
+    const moduleName = name === 'videoDetail' ? 'video' : ['contentDetail', 'contentDanmaku'].includes(name) ? 'contents' : name
     if (moduleName && moduleName !== activeModule.value) {
       activeModule.value = moduleName
     }
@@ -169,7 +172,7 @@ watch(
 
 function navigate(key) {
   activeModule.value = key
-  const unifiedModules = ['overview', 'contents', 'comment', 'creator', 'collector', 'dataSource']
+  const unifiedModules = ['overview', 'contents', 'metrics', 'comment', 'creator', 'collector', 'dataSource']
   const query = unifiedModules.includes(key) && selectedPlatform.value !== 'all'
     ? { platform: selectedPlatform.value }
     : undefined
@@ -185,6 +188,12 @@ async function handleHeaderRefresh() {
 
   if (activeModule.value === 'comment') {
     window.dispatchEvent(new CustomEvent('bililens:refresh-comments'))
+    return
+  }
+
+  if (['contents', 'metrics', 'creator', 'dataSource', 'aiAssistant'].includes(activeModule.value)) {
+    await loadUnifiedAnalytics()
+    window.dispatchEvent(new CustomEvent('bililens:refresh-unified'))
     return
   }
 
@@ -204,7 +213,7 @@ async function handleFiltersChange(nextFilters) {
 
 function handlePlatformChange(value) {
   selectedPlatform.value = value
-  const unifiedModules = ['overview', 'contents', 'comment', 'creator', 'collector', 'dataSource']
+  const unifiedModules = ['overview', 'contents', 'metrics', 'comment', 'creator', 'collector', 'dataSource']
   if (value !== 'all' && !unifiedModules.includes(activeModule.value)) {
     router.push({ name: 'contents', query: { platform: value, contentType: 'all' } })
     return
@@ -228,6 +237,7 @@ const moduleFilterConfig = computed(() => {
     overview: { showChannel: true, showPeriod: true },
     video: { showChannel: false, showPeriod: false },
     contents: { showChannel: false, showPeriod: false },
+    metrics: { showChannel: false, showPeriod: false },
     danmaku: { showChannel: false, showPeriod: false },
     comment: { showChannel: false, showPeriod: false },
     creator: { showChannel: false, showPeriod: false },
@@ -273,7 +283,7 @@ const moduleMetrics = computed(() => {
     ]
   }
 
-  if (['overview', 'contents', 'creator', 'collector', 'dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
+  if (['overview', 'contents', 'metrics', 'creator', 'collector', 'dataSource', 'reportCenter', 'anomalyRule', 'aiAssistant'].includes(activeModule.value)) {
     return []
   }
 
@@ -410,7 +420,8 @@ async function buildTaskSheets() {
   return [
     sheet('运营任务', [
       ['taskId', '任务ID'], ['title', '任务'], ['level', '优先级'], ['type', '类型'],
-      ['status', '状态'], ['text', '说明/触发规则'], ['bvid', '关联视频'], ['source', '来源'],
+      ['status', '状态'], ['text', '说明/触发规则'], ['contentId', '关联内容ID'], ['platformCode', '平台'],
+      ['externalContentId', '外部内容ID'], ['bvid', '旧版BVID'], ['source', '来源'],
       ['sortNo', '排序'], ['statusUpdatedAt', '状态更新时间'], ['updatedAt', '任务更新时间'],
     ], tasks),
   ]

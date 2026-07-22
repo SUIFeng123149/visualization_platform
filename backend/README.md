@@ -74,6 +74,10 @@ Use these scripts for your real MySQL database:
 
 `placeholder-data.sql` contains placeholder rows only. Replace them with your real CSV imported data or edit the values manually.
 
+Run `migration_v2_unified.sql` after `schema.sql` for every local database. The default UI uses `/api/v2` and requires the unified tables; the legacy `/api/analysis` endpoints remain available only for Bilibili ADS compatibility.
+
+`/api/analysis/**`, `ads_*`, and `dwd_*` are deprecated compatibility surfaces. New features must use `/api/v2`, `dim_content`, `fact_content_metric_snapshot`, and `fact_interaction` with `content_id` as the business key.
+
 The automated tests still use H2 under the `test` profile only:
 
 - `src/test/resources/application-test.yml`

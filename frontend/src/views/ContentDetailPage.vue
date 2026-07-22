@@ -219,8 +219,8 @@ function goBack() {
 function metric(label, value, delta, note) { return { label, value, delta, note, status: 'up', description: `${label}来自统一内容指标快照。` } }
 function count(value) { return value === null || value === undefined ? '不适用' : Number(value).toLocaleString('zh-CN') }
 function score(value) { return value === null || value === undefined ? '--' : Math.round(Number(value)).toLocaleString('zh-CN') }
-function decimal(value) { return value === null || value === undefined ? '--' : Number(value).toFixed(3) }
 function percentile(value) { return value === null || value === undefined ? '--' : `P${Math.round(Number(value) * 100)}` }
+function decimal(value) { return value === null || value === undefined ? '--' : Number(value).toFixed(3) }
 function percent(value) { return `${(Number(value || 0) * 100).toFixed(1)}%` }
 function contentTypeName(type) { return { short_video: '短视频', video: '视频', series: '剧集', episode: '单集', movie: '电影' }[type] ?? type }
 function interactionTypeName(type) { return { comment: '评论', danmaku: '弹幕', review: '评分/剧评', reply: '回复' }[type] ?? type }

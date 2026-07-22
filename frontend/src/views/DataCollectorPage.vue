@@ -16,12 +16,12 @@
 
         <div class="collector-inline-grid">
           <el-form-item label="平台">
-            <el-select v-model="form.platformCode" @change="handlePlatformChange">
+            <el-select v-model="form.platformCode" :loading="loadingPlatforms" @change="handlePlatformChange">
               <el-option v-for="item in platformOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="连接器">
-            <el-input v-model="form.connectorName" placeholder="平台连接器标识" />
+            <el-input v-model="form.connectorName" readonly aria-label="平台注册连接器" />
           </el-form-item>
           <el-form-item label="目标类型">
             <el-select v-model="form.targetType">
@@ -66,7 +66,7 @@
         <div><strong>任务协议</strong><span>schemaVersion 2.0</span></div>
         <div><strong>拉取任务</strong><span>POST /api/collector/tasks/pull</span></div>
         <div><strong>回传状态</strong><span>PUT /api/collector/tasks/{taskId}/status</span></div>
-        <div><strong>当前实现</strong><span>B 站 CSV 可用；其他平台为连接器占位。</span></div>
+        <div><strong>当前实现</strong><span>连接器和能力由平台注册表统一约束，worker 按任务合同执行。</span></div>
       </div>
     </section>
   </section>
@@ -110,24 +110,13 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload } from '@element-plus/icons-vue'
 import { cancelCollectorTask, createCollectorTask, fetchCollectorTask, fetchCollectorTasks } from '@/api/collector'
+import { usePlatformContext } from '@/composables/usePlatformContext'
 
-const platformOptions = [
-  { label: '哔哩哔哩', value: 'bilibili', connector: 'bilibili-export-v1' },
-  { label: '抖音', value: 'douyin', connector: 'douyin-approved-source-v1' },
-  { label: '爱奇艺', value: 'iqiyi', connector: 'iqiyi-approved-source-v1' },
-  { label: '优酷', value: 'youku', connector: 'youku-approved-source-v1' },
-]
-const targetTypeOptions = [
+const allTargetTypeOptions = [
   { label: '关键词', value: 'keyword' }, { label: '发布账号', value: 'account' },
   { label: '指定内容', value: 'content' }, { label: '剧集', value: 'series' },
   { label: '热门内容', value: 'popular' },
 ]
-const capabilitiesByPlatform = {
-  bilibili: ['content', 'metrics', 'comments', 'danmaku', 'creator_metrics'],
-  douyin: ['content', 'metrics', 'comments', 'completion_rate', 'creator_metrics'],
-  iqiyi: ['content', 'metrics', 'comments', 'reviews', 'series', 'official_heat'],
-  youku: ['content', 'metrics', 'comments', 'reviews', 'series', 'official_heat'],
-}
 const capabilityLabels = { content: '内容', metrics: '指标', comments: '评论', danmaku: '弹幕', reviews: '评分/剧评', series: '剧集', completion_rate: '完播率', creator_metrics: '账号指标', official_heat: '官方热度' }
 
 const targetText = ref('')
@@ -137,25 +126,56 @@ const loading = ref(false)
 const tasks = ref([])
 const selectedTask = ref(null)
 let timer = null
+const { platforms, loadingPlatforms, loadPlatforms } = usePlatformContext()
 const form = reactive({
-  taskName: '通用内容数据采集', naturalLanguage: '', platformCode: 'bilibili',
-  connectorName: 'bilibili-export-v1', targetType: 'keyword',
-  requestedCapabilities: ['content', 'metrics', 'comments'], maxContents: 100,
+  taskName: '通用内容数据采集', naturalLanguage: '', platformCode: '',
+  connectorName: '', targetType: 'keyword',
+  requestedCapabilities: [], maxContents: 100,
   maxInteractions: 50, workers: 2, requestDelaySeconds: 1, priority: 'normal',
 })
 const activeTaskCount = computed(() => tasks.value.filter((task) => !isFinished(task.status)).length)
-const capabilityOptions = computed(() => Object.entries(capabilityLabels).map(([value, label]) => ({ value, label, available: capabilitiesByPlatform[form.platformCode]?.includes(value) })))
+const platformOptions = computed(() => platforms.value.map((platform) => ({
+  label: platform.displayName,
+  value: platform.platformCode,
+  connector: platform.connectorName,
+  capabilities: platform.capabilities ?? {},
+})))
+const targetTypeOptions = computed(() => {
+  const platform = platformOptions.value.find((item) => item.value === form.platformCode)
+  return allTargetTypeOptions.filter((item) => item.value !== 'series' || platform?.capabilities?.series)
+})
+const capabilityOptions = computed(() => {
+  const platform = platformOptions.value.find((item) => item.value === form.platformCode)
+  const available = new Set(['content', 'metrics'])
+  Object.entries(platform?.capabilities ?? {}).forEach(([key, enabled]) => {
+    if (enabled && key in capabilityLabels) available.add(key)
+  })
+  return Object.entries(capabilityLabels).map(([value, label]) => ({ value, label, available: available.has(value) }))
+})
 
-onMounted(() => { loadTasks(); timer = window.setInterval(loadTasks, 5000) })
+onMounted(async () => {
+  try {
+    await loadPlatforms()
+    if (platformOptions.value.length) handlePlatformChange(platformOptions.value[0].value)
+  } catch (error) {
+    ElMessage.error(error.message || '平台注册数据加载失败')
+  }
+  loadTasks()
+  timer = window.setInterval(loadTasks, 5000)
+})
 onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
 
 function handlePlatformChange(platformCode) {
-  form.connectorName = platformOptions.find((item) => item.value === platformCode)?.connector ?? `${platformCode}-default`
-  form.requestedCapabilities = ['content', 'metrics'].filter((item) => capabilitiesByPlatform[platformCode]?.includes(item))
-  if (!capabilitiesByPlatform[platformCode]?.includes('series') && form.targetType === 'series') form.targetType = 'content'
+  form.platformCode = platformCode
+  const platform = platformOptions.value.find((item) => item.value === platformCode)
+  form.connectorName = platform?.connector || `${platformCode}-default`
+  const available = new Set(capabilityOptions.value.filter((item) => item.available).map((item) => item.value))
+  form.requestedCapabilities = ['content', 'metrics'].filter((item) => available.has(item))
+  if (!available.has('series') && form.targetType === 'series') form.targetType = 'content'
 }
 
 async function submitTask() {
+  if (!form.platformCode) return ElMessage.warning('请先选择平台')
   const targets = targetText.value.split(/[\n,，]+/).map((item) => item.trim()).filter(Boolean)
   if (!targets.length && !form.naturalLanguage.trim()) return ElMessage.warning('请填写采集目标或自然语言需求')
   let options

@@ -5,6 +5,8 @@ import com.bililens.analytics.collector.dto.CollectorTaskDto;
 import com.bililens.analytics.collector.dto.CollectorTaskPullRequest;
 import com.bililens.analytics.collector.dto.CollectorTaskStatusUpdateRequest;
 import com.bililens.analytics.collector.repository.CollectorTaskRepository;
+import com.bililens.analytics.content.dto.PlatformDto;
+import com.bililens.analytics.content.repository.ContentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
@@ -24,10 +26,13 @@ public class CollectorTaskService {
     );
 
     private final CollectorTaskRepository collectorTaskRepository;
+    private final ContentRepository contentRepository;
     private final ObjectMapper objectMapper;
 
-    public CollectorTaskService(CollectorTaskRepository collectorTaskRepository, ObjectMapper objectMapper) {
+    public CollectorTaskService(CollectorTaskRepository collectorTaskRepository, ContentRepository contentRepository,
+                                ObjectMapper objectMapper) {
         this.collectorTaskRepository = collectorTaskRepository;
+        this.contentRepository = contentRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -35,14 +40,14 @@ public class CollectorTaskService {
         validateCreateRequest(request);
         LocalDateTime now = LocalDateTime.now();
         String taskId = "crawl-" + now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + "-" + UUID.randomUUID().toString().substring(0, 8);
-        String platformCode = defaultText(request.platformCode(), defaultText(request.sourceType(), "bilibili"));
-        String paramsJson = buildParamsJson(request, platformCode);
+        CollectionContext context = resolveCollectionContext(request);
+        String paramsJson = buildParamsJson(request, context);
         CollectorTaskDto task = new CollectorTaskDto(
                 taskId,
                 null,
                 defaultText(request.taskName(), "自然语言数据采集任务"),
                 request.naturalLanguage(),
-                platformCode,
+                context.platformCode(),
                 defaultText(request.collectMode(), "crawler_ocr_hybrid"),
                 "pending",
                 0,
@@ -97,35 +102,68 @@ public class CollectorTaskService {
 
     private static void validateCreateRequest(CollectorTaskCreateRequest request) {
         boolean hasNaturalLanguage = StringUtils.hasText(request.naturalLanguage());
-        boolean hasPopular = Boolean.TRUE.equals(request.collectPopular());
-        boolean hasHomepage = Boolean.TRUE.equals(request.collectHomepage());
-        boolean hasMid = request.mids() != null && !request.mids().isEmpty();
-        boolean hasKeyword = request.keywords() != null && request.keywords().stream().anyMatch(StringUtils::hasText);
         boolean hasGenericTarget = request.targets() != null && request.targets().stream().anyMatch(StringUtils::hasText);
-        if (!hasNaturalLanguage && !hasPopular && !hasHomepage && !hasMid && !hasKeyword && !hasGenericTarget) {
+        if (!hasNaturalLanguage && !hasGenericTarget) {
             throw new IllegalArgumentException("请填写自然语言需求或至少选择一个采集来源");
         }
     }
 
-    private String buildParamsJson(CollectorTaskCreateRequest request, String platformCode) {
-        List<String> keywords = request.keywords() == null
-                ? List.of()
-                : request.keywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
-        List<Long> mids = request.mids() == null ? List.of() : request.mids();
+    private CollectionContext resolveCollectionContext(CollectorTaskCreateRequest request) {
+        String platformCode = defaultText(request.platformCode(), request.sourceType());
+        if (!StringUtils.hasText(platformCode)) {
+            throw new IllegalArgumentException("采集任务必须指定平台");
+        }
+        if (StringUtils.hasText(request.platformCode()) && StringUtils.hasText(request.sourceType())
+                && !request.platformCode().trim().equals(request.sourceType().trim())) {
+            throw new IllegalArgumentException("platformCode 与 sourceType 不一致");
+        }
+
+        PlatformDto platform = contentRepository.findPlatforms().stream()
+                .filter(item -> item.platformCode().equals(platformCode))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("未注册的平台: " + platformCode));
+        if (!platform.enabled()) {
+            throw new IllegalArgumentException("平台已停用: " + platformCode);
+        }
+
+        String connectorName = defaultText(request.connectorName(), platform.connectorName());
+        if (!connectorName.equals(platform.connectorName())) {
+            throw new IllegalArgumentException("连接器与平台注册配置不一致: " + connectorName);
+        }
+
+        String targetType = defaultText(request.targetType(), "content");
+        if (!List.of("keyword", "account", "content", "series", "popular").contains(targetType)) {
+            throw new IllegalArgumentException("不支持的采集目标类型: " + targetType);
+        }
+        if ("series".equals(targetType) && !Boolean.TRUE.equals(platform.capabilities().get("series"))) {
+            throw new IllegalArgumentException("该平台不支持剧集采集: " + platformCode);
+        }
+
+        List<String> requestedCapabilities = request.requestedCapabilities() == null
+                ? List.of("content", "metrics")
+                : request.requestedCapabilities().stream().filter(StringUtils::hasText).map(String::trim).distinct().toList();
+        for (String capability : requestedCapabilities) {
+            boolean supported = List.of("content", "metrics").contains(capability)
+                    || Boolean.TRUE.equals(platform.capabilities().get(capability));
+            if (!supported) {
+                throw new IllegalArgumentException("平台 " + platformCode + " 不支持采集能力: " + capability);
+            }
+        }
+        return new CollectionContext(platformCode, connectorName, targetType, requestedCapabilities);
+    }
+
+    private String buildParamsJson(CollectorTaskCreateRequest request, CollectionContext context) {
         List<String> targets = request.targets() == null
                 ? List.of()
                 : request.targets().stream().filter(StringUtils::hasText).map(String::trim).toList();
-        if (targets.isEmpty()) {
-            targets = !keywords.isEmpty() ? keywords : mids.stream().map(String::valueOf).toList();
-        }
 
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("schemaVersion", "2.0");
-        params.put("platformCode", platformCode);
-        params.put("connectorName", defaultText(request.connectorName(), platformCode + "-default"));
-        params.put("targetType", defaultText(request.targetType(), inferLegacyTargetType(request)));
+        params.put("platformCode", context.platformCode());
+        params.put("connectorName", context.connectorName());
+        params.put("targetType", context.targetType());
         params.put("targets", targets);
-        params.put("requestedCapabilities", request.requestedCapabilities() == null ? List.of("content", "metrics") : request.requestedCapabilities());
+        params.put("requestedCapabilities", context.requestedCapabilities());
 
         Map<String, Object> options = new LinkedHashMap<>();
         if (request.options() != null) {
@@ -136,13 +174,6 @@ public class CollectorTaskService {
         options.putIfAbsent("workers", request.workers() == null ? 2 : request.workers());
         options.putIfAbsent("requestDelaySeconds", request.commentDelay() == null ? 1.0 : request.commentDelay());
         options.putIfAbsent("ocrEnabled", Boolean.TRUE.equals(request.ocrEnabled()));
-        options.put("legacy", Map.of(
-                "keywords", keywords,
-                "mids", mids,
-                "collectPopular", Boolean.TRUE.equals(request.collectPopular()),
-                "collectHomepage", Boolean.TRUE.equals(request.collectHomepage()),
-                "danmakuDelay", request.danmakuDelay() == null ? 6.0 : request.danmakuDelay()
-        ));
         params.put("options", options);
 
         try {
@@ -152,14 +183,10 @@ public class CollectorTaskService {
         }
     }
 
-    private static String inferLegacyTargetType(CollectorTaskCreateRequest request) {
-        if (Boolean.TRUE.equals(request.collectPopular())) return "popular";
-        if (Boolean.TRUE.equals(request.collectHomepage())) return "homepage";
-        if (request.mids() != null && !request.mids().isEmpty()) return "account";
-        return "keyword";
-    }
-
     private static String defaultText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
+
+    private record CollectionContext(String platformCode, String connectorName, String targetType,
+                                     List<String> requestedCapabilities) { }
 }

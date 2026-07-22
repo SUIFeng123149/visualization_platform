@@ -30,6 +30,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/api/analysis")
+@Deprecated(since = "0.2.0", forRemoval = false)
 public class AnalysisController {
 
     private final AnalysisService analysisService;

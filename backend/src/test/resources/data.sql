@@ -6,11 +6,11 @@ values
 ('BV002', 'ECharts可视化看板搭建指南', '前端研究所', '科技', 126000, 7800, 2100, 4300, 1800, 4800, 60300.0, 3),
 ('BV004', 'UP主增长数据复盘方法', '运营观察员', '知识', 72000, 4200, 900, 2200, 1200, 2600, 34980.0, 4);
 
-insert into dim_platform (platform_code, display_name, capabilities_json, enabled) values
-('bilibili', '哔哩哔哩', '{"comments":true,"replies":true,"reviews":false,"danmaku":true}', 1),
-('douyin', '抖音', '{"comments":true,"replies":true,"reviews":false,"danmaku":false}', 1),
-('iqiyi', '爱奇艺', '{"comments":true,"replies":false,"reviews":true,"danmaku":false}', 1),
-('youku', '优酷', '{"comments":true,"replies":false,"reviews":true,"danmaku":false}', 1);
+insert into dim_platform (platform_code, display_name, connector_name, capabilities_json, enabled) values
+('bilibili', '哔哩哔哩', 'bilibili-export-v1', '{"comments":true,"replies":true,"reviews":false,"danmaku":true}', 1),
+('douyin', '抖音', 'douyin-approved-export-v1', '{"comments":true,"replies":true,"reviews":false,"danmaku":true}', 1),
+('iqiyi', '爱奇艺', 'iqiyi-approved-export-v1', '{"comments":true,"replies":false,"reviews":true,"danmaku":true,"series":true}', 1),
+('youku', '优酷', 'youku-approved-export-v1', '{"comments":true,"replies":false,"reviews":true,"danmaku":true}', 1);
 
 insert into dim_account (account_id, platform_code, external_account_id, display_name, account_type) values
 (1, 'bilibili', 'UP001', '数据小助手', 'creator'),
@@ -33,6 +33,11 @@ insert into fact_content_metric_snapshot
 (3, '2026-05-26 10:00:00', 800000, null, 12000, 900, 21000, null, null, 93000, 0.95),
 (4, '2026-05-26 10:00:00', 320000, 6000, 4200, 320, 8000, null, null, 72000, 0.81),
 (5, '2026-05-26 10:00:00', 280000, 5200, 3600, 280, 7200, null, null, 68000, 0.78);
+
+insert into metric_dictionary (metric_key, display_name, unit, scope, definition, comparable) values
+('view_count', '播放量', 'count', 'content', '平台返回的累计播放次数', 0),
+('interaction_rate', '互动率', 'ratio', 'content', '互动总量除以播放量', 1),
+('normalized_heat_score', '归一化热度', 'percentile', 'cross_platform', '同类内容的相对热度', 1);
 
 insert into fact_interaction
 (interaction_id, content_id, platform_code, external_interaction_id, interaction_type, external_user_id, user_name, text, like_count, video_time_seconds, occurred_at, captured_at, batch_id, raw_attributes) values

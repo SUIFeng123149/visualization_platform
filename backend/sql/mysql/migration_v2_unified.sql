@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS dim_platform (
   platform_code VARCHAR(32) PRIMARY KEY,
   display_name VARCHAR(64) NOT NULL,
+  connector_name VARCHAR(128) NOT NULL,
   capabilities_json JSON NOT NULL,
   enabled TINYINT NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -114,18 +115,80 @@ CREATE TABLE IF NOT EXISTS metric_dictionary (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO dim_platform (platform_code, display_name, capabilities_json)
-VALUES
-  ('bilibili', '哔哩哔哩', JSON_OBJECT('comments', true, 'replies', true, 'danmaku', true, 'reviews', false, 'series', false, 'completion_rate', false, 'creator_metrics', true, 'official_heat', false)),
-  ('douyin', '抖音', JSON_OBJECT('comments', true, 'replies', true, 'danmaku', false, 'reviews', false, 'series', false, 'completion_rate', true, 'creator_metrics', true, 'official_heat', false)),
-  ('iqiyi', '爱奇艺', JSON_OBJECT('comments', true, 'replies', false, 'danmaku', false, 'reviews', true, 'series', true, 'completion_rate', true, 'creator_metrics', false, 'official_heat', true)),
-  ('youku', '优酷', JSON_OBJECT('comments', true, 'replies', false, 'danmaku', false, 'reviews', true, 'series', true, 'completion_rate', true, 'creator_metrics', false, 'official_heat', true))
-ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), capabilities_json = VALUES(capabilities_json), enabled = 1;
-
 INSERT INTO metric_dictionary (metric_key, display_name, unit, scope, definition, comparable)
 VALUES
   ('view_count', '播放量', 'count', 'content', '平台返回的累计播放次数', 0),
+  ('like_count', '点赞量', 'count', 'content', '用户表达喜欢的累计次数', 0),
+  ('comment_count', '评论量', 'count', 'content', '评论、回复或剧评的累计次数', 0),
+  ('share_count', '分享量', 'count', 'content', '平台记录的内容分享次数', 0),
+  ('favorite_count', '收藏量', 'count', 'content', '收藏、追更或稍后看的累计次数', 0),
+  ('danmaku_count', '弹幕量', 'count', 'content', '带视频内时间点互动的累计次数', 0),
+  ('coin_count', '投币量', 'count', 'platform', '平台特有的投币或打赏次数', 0),
+  ('completion_rate', '完播率', 'ratio', 'content', '内容播放完成比例', 1),
+  ('rating', '评分', 'score', 'content', '平台提供的用户评分或口碑分', 0),
   ('interaction_rate', '互动率', 'ratio', 'content', '点赞、评论、分享等互动总量除以播放量', 1),
   ('platform_heat_score', '平台热度', 'score', 'platform', '平台内或平台策略计算的热度分', 0),
   ('normalized_heat_score', '归一化热度', 'percentile', 'cross_platform', '同平台、同内容类型、同时间窗口内的百分位热度', 1)
-ON DUPLICATE KEY UPDATE definition = VALUES(definition);
+ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), unit = VALUES(unit), scope = VALUES(scope), definition = VALUES(definition), comparable = VALUES(comparable);
+
+-- MySQL 5.7 does not support ADD COLUMN/CREATE INDEX IF NOT EXISTS.
+-- Use INFORMATION_SCHEMA so this additive migration remains repeatable.
+SET @schema_name = DATABASE();
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'dim_platform' AND COLUMN_NAME = 'connector_name') = 0,
+  'ALTER TABLE dim_platform ADD COLUMN connector_name VARCHAR(128) NOT NULL DEFAULT '''' AFTER display_name',
+  'SELECT 1'
+);
+PREPARE migration_statement FROM @sql;
+EXECUTE migration_statement;
+DEALLOCATE PREPARE migration_statement;
+
+INSERT INTO dim_platform (platform_code, display_name, connector_name, capabilities_json)
+VALUES
+  ('bilibili', '哔哩哔哩', 'bilibili-export-v1', JSON_OBJECT('comments', true, 'replies', true, 'danmaku', true, 'reviews', false, 'series', false, 'completion_rate', false, 'creator_metrics', true, 'official_heat', false)),
+  ('douyin', '抖音', 'douyin-approved-export-v1', JSON_OBJECT('comments', true, 'replies', true, 'danmaku', true, 'reviews', false, 'series', false, 'completion_rate', true, 'creator_metrics', true, 'official_heat', false)),
+  ('iqiyi', '爱奇艺', 'iqiyi-approved-export-v1', JSON_OBJECT('comments', true, 'replies', false, 'danmaku', true, 'reviews', true, 'series', true, 'completion_rate', true, 'creator_metrics', false, 'official_heat', true)),
+  ('youku', '优酷', 'youku-approved-export-v1', JSON_OBJECT('comments', true, 'replies', false, 'danmaku', true, 'reviews', true, 'series', true, 'completion_rate', true, 'creator_metrics', false, 'official_heat', true))
+ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), connector_name = VALUES(connector_name), capabilities_json = VALUES(capabilities_json), enabled = 1;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'ops_task' AND COLUMN_NAME = 'content_id') = 0,
+  'ALTER TABLE ops_task ADD COLUMN content_id BIGINT NULL',
+  'SELECT 1'
+);
+PREPARE migration_statement FROM @sql;
+EXECUTE migration_statement;
+DEALLOCATE PREPARE migration_statement;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'ops_task' AND COLUMN_NAME = 'platform_code') = 0,
+  'ALTER TABLE ops_task ADD COLUMN platform_code VARCHAR(32) NULL',
+  'SELECT 1'
+);
+PREPARE migration_statement FROM @sql;
+EXECUTE migration_statement;
+DEALLOCATE PREPARE migration_statement;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'ops_task' AND COLUMN_NAME = 'external_content_id') = 0,
+  'ALTER TABLE ops_task ADD COLUMN external_content_id VARCHAR(255) NULL',
+  'SELECT 1'
+);
+PREPARE migration_statement FROM @sql;
+EXECUTE migration_statement;
+DEALLOCATE PREPARE migration_statement;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+   WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'ops_task' AND INDEX_NAME = 'idx_ops_task_content') = 0,
+  'CREATE INDEX idx_ops_task_content ON ops_task (content_id)',
+  'SELECT 1'
+);
+PREPARE migration_statement FROM @sql;
+EXECUTE migration_statement;
+DEALLOCATE PREPARE migration_statement;

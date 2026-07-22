@@ -3,22 +3,25 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/overview',
+    redirect: '/contents',
   },
   {
     path: '/overview',
-    name: 'overview',
-    component: () => import('@/views/OverviewPage.vue'),
+    redirect: { name: 'contents' },
   },
   {
     path: '/video',
-    name: 'video',
-    component: () => import('@/views/VideoPage.vue'),
+    redirect: { name: 'contents' },
   },
   {
     path: '/video/:bvid',
-    name: 'videoDetail',
-    component: () => import('@/views/VideoDetailPage.vue'),
+    redirect: (to) => ({
+      name: 'contents',
+      query: {
+        keyword: String(to.params.bvid || ''),
+        legacy: 'bvid',
+      },
+    }),
   },
   {
     path: '/contents',
@@ -31,9 +34,18 @@ const routes = [
     component: () => import('@/views/ContentDetailPage.vue'),
   },
   {
+    path: '/contents/:contentId/danmaku',
+    name: 'contentDanmaku',
+    component: () => import('@/views/ContentDetailPage.vue'),
+  },
+  {
+    path: '/metrics',
+    name: 'metrics',
+    component: () => import('@/views/MetricExplorerPage.vue'),
+  },
+  {
     path: '/danmaku',
-    name: 'danmaku',
-    component: () => import('@/views/DanmakuPage.vue'),
+    redirect: '/contents',
   },
   {
     path: '/comment',

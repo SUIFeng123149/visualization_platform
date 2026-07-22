@@ -6,6 +6,8 @@ import com.bililens.analytics.content.dto.CommentInsightSummaryDto;
 import com.bililens.analytics.content.dto.CommentTrendPointDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
+import com.bililens.analytics.content.dto.MetricComparisonDto;
+import com.bililens.analytics.content.dto.MetricDefinitionDto;
 import com.bililens.analytics.content.dto.NegativeInteractionDto;
 import com.bililens.analytics.content.dto.PlatformDto;
 import com.bililens.analytics.content.dto.SentimentSummaryDto;
@@ -14,6 +16,7 @@ import com.bililens.analytics.content.dto.TrendPointDto;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
@@ -37,18 +40,35 @@ public class ContentRepository {
     }
 
     public List<PlatformDto> findPlatforms() {
-        return jdbcClient.sql("""
-                        select platform_code, display_name, capabilities_json, enabled
+        try {
+            return jdbcClient.sql("""
+                        select platform_code, display_name, connector_name, capabilities_json, enabled
                         from dim_platform
                         order by platform_code
                         """)
+                    .query((rs, rowNum) -> new PlatformDto(
+                            rs.getString("platform_code"),
+                            rs.getString("display_name"),
+                            rs.getString("connector_name"),
+                            readCapabilities(rs.getString("capabilities_json")),
+                            rs.getBoolean("enabled")
+                    ))
+                    .list();
+        } catch (DataAccessException ignored) {
+            return jdbcClient.sql("""
+                            select platform_code, display_name, capabilities_json, enabled
+                            from dim_platform
+                            order by platform_code
+                            """)
                 .query((rs, rowNum) -> new PlatformDto(
                         rs.getString("platform_code"),
                         rs.getString("display_name"),
+                        rs.getString("platform_code") + "-default",
                         readCapabilities(rs.getString("capabilities_json")),
                         rs.getBoolean("enabled")
                 ))
                 .list();
+        }
     }
 
     public List<ContentSummaryDto> findContents(String platform, String contentType, int limit) {
@@ -74,6 +94,55 @@ public class ContentRepository {
                 .param("contentType", blankToNull(contentType))
                 .param("limit", limit)
                 .query((rs, rowNum) -> toSummary(rs))
+                .list();
+    }
+
+    public List<MetricDefinitionDto> findMetricDefinitions() {
+        return jdbcClient.sql("""
+                        select metric_key, display_name, unit, scope, definition, comparable
+                        from metric_dictionary
+                        order by comparable desc, display_name
+                        """)
+                .query((rs, rowNum) -> toMetricDefinition(rs))
+                .list();
+    }
+
+    public Optional<MetricDefinitionDto> findMetricDefinition(String metricKey) {
+        return jdbcClient.sql("""
+                        select metric_key, display_name, unit, scope, definition, comparable
+                        from metric_dictionary
+                        where metric_key = :metricKey
+                        """)
+                .param("metricKey", metricKey)
+                .query((rs, rowNum) -> toMetricDefinition(rs))
+                .optional();
+    }
+
+    public List<MetricComparisonDto> findMetricComparison(String metricKey, String platform, String contentType) {
+        String expression = metricExpression(metricKey);
+        String sql = """
+                select c.platform_code, count(distinct c.content_id) as content_count,
+                       count(%1$s) as available_count, avg(%1$s) as average_value,
+                       min(%1$s) as min_value, max(%1$s) as max_value
+                from dim_content c
+                left join fact_content_metric_snapshot m on m.snapshot_id = (
+                    select latest.snapshot_id from fact_content_metric_snapshot latest
+                    where latest.content_id = c.content_id
+                    order by latest.captured_at desc, latest.snapshot_id desc limit 1
+                )
+                where (:platform is null or c.platform_code = :platform)
+                  and (:contentType is null or c.content_type = :contentType)
+                group by c.platform_code
+                order by average_value desc, c.platform_code
+                """.formatted(expression);
+        return jdbcClient.sql(sql)
+                .param("platform", blankToNull(platform))
+                .param("contentType", blankToNull(contentType))
+                .query((rs, rowNum) -> new MetricComparisonDto(
+                        metricKey, rs.getString("platform_code"), rs.getLong("content_count"),
+                        rs.getLong("available_count"), nullableDouble(rs, "average_value"),
+                        nullableDouble(rs, "min_value"), nullableDouble(rs, "max_value")
+                ))
                 .list();
     }
 
@@ -522,6 +591,26 @@ public class ContentRepository {
                 nullableDouble(rs, "normalized_heat_score"),
                 localDateTime(rs, "captured_at")
         );
+    }
+
+    private static MetricDefinitionDto toMetricDefinition(ResultSet rs) throws SQLException {
+        return new MetricDefinitionDto(
+                rs.getString("metric_key"), rs.getString("display_name"), rs.getString("unit"),
+                rs.getString("scope"), rs.getString("definition"), rs.getBoolean("comparable")
+        );
+    }
+
+    private static String metricExpression(String metricKey) {
+        return switch (metricKey) {
+            case "view_count", "like_count", "comment_count", "share_count", "favorite_count",
+                    "danmaku_count", "coin_count", "completion_rate", "rating", "platform_heat_score",
+                    "normalized_heat_score" -> "m." + metricKey;
+            case "interaction_rate" -> "(coalesce(m.like_count, 0) + coalesce(m.comment_count, 0)"
+                    + " + coalesce(m.share_count, 0) + coalesce(m.favorite_count, 0)"
+                    + " + coalesce(m.coin_count, 0) + coalesce(m.danmaku_count, 0))"
+                    + " * 1.0 / nullif(m.view_count, 0)";
+            default -> throw new IllegalArgumentException("不支持快照聚合的指标: " + metricKey);
+        };
     }
 
     private Map<String, Boolean> readCapabilities(String json) {

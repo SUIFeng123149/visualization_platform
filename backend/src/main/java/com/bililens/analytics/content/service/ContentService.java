@@ -7,6 +7,8 @@ import com.bililens.analytics.content.dto.CommentTrendPointDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
 import com.bililens.analytics.content.dto.KeywordDto;
+import com.bililens.analytics.content.dto.MetricComparisonDto;
+import com.bililens.analytics.content.dto.MetricDefinitionDto;
 import com.bililens.analytics.content.dto.PlatformDto;
 import com.bililens.analytics.content.dto.SentimentSummaryDto;
 import com.bililens.analytics.content.dto.TimelinePointDto;
@@ -91,6 +93,19 @@ public class ContentService {
                 startDate == null ? null : Date.valueOf(startDate),
                 endDate == null ? null : Date.valueOf(endDate)
         );
+    }
+
+    public List<MetricDefinitionDto> getMetricDefinitions() {
+        return contentRepository.findMetricDefinitions();
+    }
+
+    public List<MetricComparisonDto> getMetricComparison(String metricKey, String platform, String contentType) {
+        if (metricKey == null || metricKey.isBlank()) {
+            throw new IllegalArgumentException("请选择指标");
+        }
+        contentRepository.findMetricDefinition(metricKey.trim())
+                .orElseThrow(() -> new IllegalArgumentException("未知指标: " + metricKey));
+        return contentRepository.findMetricComparison(metricKey.trim(), platform, contentType);
     }
 
     public List<KeywordDto> getKeywords(String platform, Long contentId, int limit) {

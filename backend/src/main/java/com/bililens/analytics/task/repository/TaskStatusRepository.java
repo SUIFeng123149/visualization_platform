@@ -34,7 +34,8 @@ public class TaskStatusRepository {
 
     public List<TaskDto> findActiveTasks() {
         return jdbcClient.sql("""
-                        select t.task_id, t.title, t.level, t.type, t.text, t.bvid, t.source, t.sort_no,
+                        select t.task_id, t.title, t.level, t.type, t.text, t.content_id, t.platform_code,
+                               t.external_content_id, t.bvid, t.source, t.sort_no,
                                coalesce(s.status, 'todo') as status,
                                s.updated_at as status_updated_at,
                                t.created_at, t.updated_at
@@ -49,6 +50,9 @@ public class TaskStatusRepository {
                         rs.getString("level"),
                         rs.getString("type"),
                         rs.getString("text"),
+                        rs.getObject("content_id", Long.class),
+                        rs.getString("platform_code"),
+                        rs.getString("external_content_id"),
                         rs.getString("bvid"),
                         rs.getString("source"),
                         rs.getInt("sort_no"),
@@ -58,6 +62,14 @@ public class TaskStatusRepository {
                         toLocalDateTime(rs.getTimestamp("updated_at"))
                 ))
                 .list();
+    }
+
+    public boolean existsTask(String taskId) {
+        Long count = jdbcClient.sql("select count(*) from ops_task where task_id = :taskId")
+                .param("taskId", taskId)
+                .query(Long.class)
+                .single();
+        return count != null && count > 0;
     }
 
     public void deactivateAutoTasks() {
@@ -76,6 +88,9 @@ public class TaskStatusRepository {
                             level = :level,
                             type = :type,
                             text = :text,
+                            content_id = :contentId,
+                            platform_code = :platformCode,
+                            external_content_id = :externalContentId,
                             bvid = :bvid,
                             source = :source,
                             sort_no = :sortNo,
@@ -87,6 +102,9 @@ public class TaskStatusRepository {
                 .param("level", task.level())
                 .param("type", task.type())
                 .param("text", task.text())
+                .param("contentId", task.contentId())
+                .param("platformCode", task.platformCode())
+                .param("externalContentId", task.externalContentId())
                 .param("bvid", task.bvid())
                 .param("source", task.source())
                 .param("sortNo", task.sortNo())
@@ -96,15 +114,18 @@ public class TaskStatusRepository {
         if (updated == 0) {
             jdbcClient.sql("""
                             insert into ops_task
-                            (task_id, title, level, type, text, bvid, source, sort_no, is_active, created_at, updated_at)
+                            (task_id, title, level, type, text, content_id, platform_code, external_content_id, bvid, source, sort_no, is_active, created_at, updated_at)
                             values
-                            (:taskId, :title, :level, :type, :text, :bvid, :source, :sortNo, 1, current_timestamp, current_timestamp)
+                            (:taskId, :title, :level, :type, :text, :contentId, :platformCode, :externalContentId, :bvid, :source, :sortNo, 1, current_timestamp, current_timestamp)
                             """)
                     .param("taskId", task.taskId())
                     .param("title", task.title())
                     .param("level", task.level())
                     .param("type", task.type())
                     .param("text", task.text())
+                    .param("contentId", task.contentId())
+                    .param("platformCode", task.platformCode())
+                    .param("externalContentId", task.externalContentId())
                     .param("bvid", task.bvid())
                     .param("source", task.source())
                     .param("sortNo", task.sortNo())

@@ -40,6 +40,14 @@ export function fetchUnifiedKeywords(params = {}) {
   return request('/api/v2/analytics/keywords', params)
 }
 
+export function fetchMetricDefinitions() {
+  return request('/api/v2/analytics/metric-definitions')
+}
+
+export function fetchMetricComparison(params = {}) {
+  return request('/api/v2/analytics/metric-comparison', params)
+}
+
 export function fetchAccountPerformance(params = {}) {
   return request('/api/v2/accounts/performance', params)
 }

@@ -103,7 +103,7 @@ class CollectorTaskControllerTest {
                                 {
                                   "taskName": "爱奇艺剧集采集",
                                   "platformCode": "iqiyi",
-                                  "connectorName": "iqiyi-approved-source-v1",
+                                  "connectorName": "iqiyi-approved-export-v1",
                                   "targetType": "series",
                                   "targets": ["IQ_SERIES_1"],
                                   "requestedCapabilities": ["content", "metrics", "reviews", "series"],
@@ -122,5 +122,35 @@ class CollectorTaskControllerTest {
         mockMvc.perform(post("/api/collector/tasks/" + taskId + "/cancel"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("cancelled"));
+    }
+
+    @Test
+    void collectorTaskRejectsUnsupportedPlatformCapability() throws Exception {
+        mockMvc.perform(post("/api/collector/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "platformCode": "bilibili",
+                                  "targets": ["BV003"],
+                                  "requestedCapabilities": ["content", "reviews"]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("不支持采集能力")));
+    }
+
+    @Test
+    void collectorTaskRejectsMismatchedConnector() throws Exception {
+        mockMvc.perform(post("/api/collector/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "platformCode": "douyin",
+                                  "connectorName": "bilibili-export-v1",
+                                  "targets": ["DY001"]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("连接器与平台注册配置不一致")));
     }
 }

@@ -158,6 +158,9 @@ CREATE TABLE ops_task (
   level VARCHAR(32) NOT NULL,
   type VARCHAR(32) NOT NULL,
   text TEXT NOT NULL,
+  content_id BIGINT,
+  platform_code VARCHAR(32),
+  external_content_id VARCHAR(255),
   bvid VARCHAR(32),
   source VARCHAR(64) NOT NULL DEFAULT 'system',
   sort_no INT NOT NULL DEFAULT 100,
@@ -166,6 +169,7 @@ CREATE TABLE ops_task (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_active_sort (is_active, sort_no),
   INDEX idx_bvid (bvid),
+  INDEX idx_content_id (content_id),
   INDEX idx_source (source)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

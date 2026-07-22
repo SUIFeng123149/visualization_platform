@@ -25,6 +25,7 @@ class ContentControllerTest {
         mockMvc.perform(get("/api/v2/platforms"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(4)))
+                .andExpect(jsonPath("$.data[0].connectorName").value("bilibili-export-v1"))
                 .andExpect(jsonPath("$.data[0].capabilities.comments").value(true));
     }
 
@@ -42,6 +43,19 @@ class ContentControllerTest {
         mockMvc.perform(get("/api/v2/contents").param("limit", "500"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    void metricComparisonStaysOutsideTheContentReviewContract() throws Exception {
+        mockMvc.perform(get("/api/v2/analytics/metric-definitions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(3)))
+                .andExpect(jsonPath("$.data[0].metricKey").value("interaction_rate"));
+
+        mockMvc.perform(get("/api/v2/analytics/metric-comparison").param("metricKey", "normalized_heat_score"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(4)))
+                .andExpect(jsonPath("$.data[0].metricKey").value("normalized_heat_score"));
     }
 
     @Test
