@@ -7,6 +7,7 @@ import com.bililens.analytics.platform.dto.ReportCreateRequest;
 import com.bililens.analytics.platform.dto.ReportHistoryDto;
 import com.bililens.analytics.platform.dto.PlatformConfigDto;
 import com.bililens.analytics.platform.dto.PlatformConfigRequest;
+import com.bililens.analytics.platform.dto.PlatformValidationDto;
 import com.bililens.analytics.platform.dto.MetricConfigDto;
 import com.bililens.analytics.platform.dto.MetricConfigRequest;
 import com.bililens.analytics.platform.repository.PlatformRepository;
@@ -35,6 +36,7 @@ public class PlatformService {
 
     public List<PlatformConfigDto> getPlatformConfigs() { return platformRepository.findPlatformConfigs(); }
     public PlatformConfigDto savePlatformConfig(PlatformConfigRequest request) { return platformRepository.upsertPlatformConfig(request); }
+    public PlatformValidationDto validatePlatformCodes(List<String> platformCodes) { return platformRepository.validatePlatformCodes(platformCodes); }
     public List<MetricConfigDto> getMetricConfigs() { return platformRepository.findMetricConfigs(); }
     public MetricConfigDto saveMetricConfig(String metricKey, MetricConfigRequest request) { return platformRepository.updateMetricConfig(metricKey, request); }
 

@@ -80,6 +80,7 @@ accounts.jsonl
 contents.jsonl
 metric_snapshots.jsonl
 interactions.jsonl
+text_analyses.jsonl  # 有可分析互动文本时提供
 ```
 
 数据合同、质量要求和交付清单见 [数据清洗与分析对接指南](docs/数据清洗与分析对接指南.md)。本项目不负责清洗分析实现；平台侧按交付合同安排入库。不要向新库写入旧版 ADS/DWD/DWS 表，也不要把不支持的指标填为 `0`。

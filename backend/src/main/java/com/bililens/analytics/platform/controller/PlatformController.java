@@ -8,6 +8,8 @@ import com.bililens.analytics.platform.dto.ReportCreateRequest;
 import com.bililens.analytics.platform.dto.ReportHistoryDto;
 import com.bililens.analytics.platform.dto.PlatformConfigDto;
 import com.bililens.analytics.platform.dto.PlatformConfigRequest;
+import com.bililens.analytics.platform.dto.PlatformValidationDto;
+import com.bililens.analytics.platform.dto.PlatformValidationRequest;
 import com.bililens.analytics.platform.dto.MetricConfigDto;
 import com.bililens.analytics.platform.dto.MetricConfigRequest;
 import com.bililens.analytics.platform.dto.PasswordConfirmRequest;
@@ -47,6 +49,11 @@ public class PlatformController {
 
     @PutMapping("/platforms")
     public ApiResponse<PlatformConfigDto> savePlatformConfig(@Valid @RequestBody PlatformConfigRequest request) { return ApiResponse.ok(platformService.savePlatformConfig(request)); }
+
+    @PostMapping("/platforms/validate")
+    public ApiResponse<PlatformValidationDto> validatePlatformCodes(@Valid @RequestBody PlatformValidationRequest request) {
+        return ApiResponse.ok(platformService.validatePlatformCodes(request.platformCodes()));
+    }
 
     @DeleteMapping("/platforms/{platformCode}")
     public ApiResponse<Void> deletePlatformConfig(@PathVariable @Size(max = 32) String platformCode,

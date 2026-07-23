@@ -16,7 +16,17 @@
         </template>
       </el-table-column>
       <el-table-column prop="metric" label="指标" width="140" />
-      <el-table-column prop="operator" label="条件" width="90" />
+      <el-table-column label="条件" width="110">
+        <template #default="{ row }">
+          <el-select v-model="row.operator" size="small" aria-label="规则比较条件">
+            <el-option label="大于" value=">" />
+            <el-option label="大于等于" value=">=" />
+            <el-option label="小于" value="<" />
+            <el-option label="小于等于" value="<=" />
+            <el-option label="等于" value="=" />
+          </el-select>
+        </template>
+      </el-table-column>
       <el-table-column label="阈值" width="150">
         <template #default="{ row }">
           <el-input-number v-model="row.threshold" :min="0" :step="thresholdStep(row.metric)" size="small" />
@@ -53,6 +63,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchAnomalyRules, updateAnomalyRule } from '@/api/platform'
+import { refreshTasks } from '@/api/tasks'
 
 const loading = ref(false)
 const rules = ref([])
@@ -83,7 +94,16 @@ async function saveRule(rule) {
       description: rule.description,
     })
     Object.assign(rule, saved)
-    ElMessage.success(saved.description?.includes('未持久化') ? '规则已应用但未持久化：请创建 ops_anomaly_rule 表' : '规则已保存')
+    if (saved.description?.includes('未持久化')) {
+      ElMessage.success('规则已应用但未持久化：请创建 ops_anomaly_rule 表')
+      return
+    }
+    try {
+      await refreshTasks()
+      ElMessage.success('规则已保存，任务中心已按新规则刷新')
+    } catch (refreshError) {
+      ElMessage.warning(refreshError.message || '规则已保存，但任务中心刷新失败')
+    }
   } catch (error) {
     ElMessage.error(error.message || '规则保存失败')
   }

@@ -7,6 +7,7 @@ import com.bililens.analytics.platform.dto.ReportCreateRequest;
 import com.bililens.analytics.platform.dto.ReportHistoryDto;
 import com.bililens.analytics.platform.dto.PlatformConfigDto;
 import com.bililens.analytics.platform.dto.PlatformConfigRequest;
+import com.bililens.analytics.platform.dto.PlatformValidationDto;
 import com.bililens.analytics.platform.dto.MetricConfigDto;
 import com.bililens.analytics.platform.dto.MetricConfigRequest;
 import org.springframework.dao.DataAccessException;
@@ -19,6 +20,8 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Repository
 public class PlatformRepository {
@@ -57,6 +60,16 @@ public class PlatformRepository {
         return findPlatformConfigs().stream().filter(item -> item.platformCode().equals(request.platformCode())).findFirst().orElseThrow();
     }
 
+    public PlatformValidationDto validatePlatformCodes(List<String> platformCodes) {
+        Set<String> requested = new LinkedHashSet<>(platformCodes);
+        List<PlatformConfigDto> configs = findPlatformConfigs();
+        Set<String> configured = configs.stream().map(PlatformConfigDto::platformCode).collect(java.util.stream.Collectors.toSet());
+        List<String> active = requested.stream().filter(code -> configs.stream().anyMatch(item -> item.platformCode().equals(code) && item.enabled())).toList();
+        List<String> disabled = requested.stream().filter(code -> configured.contains(code) && !active.contains(code)).toList();
+        List<String> missing = requested.stream().filter(code -> !configured.contains(code)).toList();
+        return new PlatformValidationDto(active, disabled, missing, missing.isEmpty() && disabled.isEmpty());
+    }
+
     public void deletePlatformConfig(String platformCode) {
         Long accounts = jdbcClient.sql("select count(*) from dim_account where platform_code=:platformCode")
                 .param("platformCode", platformCode).query(Long.class).single();
@@ -92,11 +105,10 @@ public class PlatformRepository {
                 tableStatus("dim_platform", "平台目录（v2）", "DIM", null),
                 tableStatus("dim_account", "发布账号（v2）", "DIM", null),
                 tableStatus("dim_content", "统一内容（v2）", "DIM", null),
-                tableStatus("fact_content_metric_snapshot", "内容指标快照（v2）", "FACT", "captured_at"),
-                tableStatus("fact_interaction", "统一互动明细（v2）", "FACT", "captured_at"),
-                tableStatus("fact_text_analysis", "文本分析结果（v2）", "FACT", "created_at"),
+                tableStatus("fact_content_metric_snapshot", "内容指标快照（v2）", "FACT", "captured_at", 7),
+                tableStatus("fact_interaction", "统一互动明细（v2）", "FACT", "captured_at", 7),
+                tableStatus("fact_text_analysis", "文本分析结果（v2）", "FACT", "created_at", 7),
                 tableStatus("metric_dictionary", "指标字典（v2）", "CONFIG", "created_at"),
-                tableStatus("collector_task", "采集任务", "OPS", "updated_at"),
                 tableStatus("ops_task", "运营任务", "OPS", "updated_at")
         ));
         statuses.addAll(findPlatformIngestionStatuses());
@@ -284,14 +296,22 @@ public class PlatformRepository {
     }
 
     private DataSourceStatusDto tableStatus(String tableName, String displayName, String layer, String timeColumn) {
+        return tableStatus(tableName, displayName, layer, timeColumn, null);
+    }
+
+    private DataSourceStatusDto tableStatus(String tableName, String displayName, String layer, String timeColumn, Integer staleAfterDays) {
         try {
             String latestSelect = timeColumn == null ? "null as latest_at" : "max(" + timeColumn + ") as latest_at";
             return jdbcClient.sql("select count(*) as row_count, " + latestSelect + " from " + tableName)
                     .query((rs, rowNum) -> {
                         long rowCount = rs.getLong("row_count");
                         LocalDateTime latestAt = toLocalDateTime(rs.getTimestamp("latest_at"));
-                        String status = rowCount > 0 ? "healthy" : "empty";
-                        String message = rowCount > 0 ? "数据可用" : "暂无数据，请检查同步任务";
+                        boolean stale = staleAfterDays != null && latestAt != null
+                                && latestAt.isBefore(LocalDateTime.now().minusDays(staleAfterDays));
+                        String status = rowCount == 0 ? "empty" : stale ? "stale" : "healthy";
+                        String message = rowCount == 0 ? "暂无数据，请检查数据交接与入库流程"
+                                : stale ? "最近数据超过 " + staleAfterDays + " 天未更新"
+                                : "数据可用";
                         return new DataSourceStatusDto(tableName, displayName, layer, rowCount, latestAt, status, message);
                     })
                     .single();

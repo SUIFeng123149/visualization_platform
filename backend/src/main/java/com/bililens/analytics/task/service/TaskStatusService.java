@@ -4,6 +4,8 @@ import com.bililens.analytics.content.dto.ContentSummaryDto;
 import com.bililens.analytics.content.dto.SentimentSummaryDto;
 import com.bililens.analytics.content.dto.TimelinePointDto;
 import com.bililens.analytics.content.repository.ContentRepository;
+import com.bililens.analytics.platform.dto.AnomalyRuleDto;
+import com.bililens.analytics.platform.repository.PlatformRepository;
 import com.bililens.analytics.task.dto.TaskDto;
 import com.bililens.analytics.task.dto.TaskStatusDto;
 import com.bililens.analytics.task.repository.TaskStatusRepository;
@@ -13,25 +15,24 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
 
 @Service
 public class TaskStatusService {
-
     private final TaskStatusRepository taskStatusRepository;
     private final ContentRepository contentRepository;
+    private final PlatformRepository platformRepository;
 
-    public TaskStatusService(TaskStatusRepository taskStatusRepository, ContentRepository contentRepository) {
+    public TaskStatusService(TaskStatusRepository taskStatusRepository, ContentRepository contentRepository, PlatformRepository platformRepository) {
         this.taskStatusRepository = taskStatusRepository;
         this.contentRepository = contentRepository;
+        this.platformRepository = platformRepository;
     }
 
-    public List<TaskStatusDto> getTaskStatuses() {
-        return taskStatusRepository.findAll();
-    }
-
-    public List<TaskDto> getTasks() {
-        return taskStatusRepository.findActiveTasks();
-    }
+    public List<TaskStatusDto> getTaskStatuses() { return taskStatusRepository.findAll(); }
+    public List<TaskDto> getTasks() { return taskStatusRepository.findActiveTasks(); }
 
     public List<TaskDto> refreshGeneratedTasks() {
         taskStatusRepository.deactivateAutoTasks();
@@ -40,82 +41,68 @@ public class TaskStatusService {
     }
 
     public TaskStatusDto updateTaskStatus(String taskId, String status) {
-        if (taskId == null || taskId.isBlank()) {
-            throw new IllegalArgumentException("taskId is required");
-        }
-        if (!taskStatusRepository.existsTask(taskId)) {
-            throw new IllegalArgumentException("运营任务不存在: " + taskId);
-        }
+        if (taskId == null || taskId.isBlank()) throw new IllegalArgumentException("taskId is required");
+        if (!taskStatusRepository.existsTask(taskId)) throw new IllegalArgumentException("运营任务不存在: " + taskId);
         return taskStatusRepository.upsert(taskId, status);
     }
 
     private List<TaskDto> buildGeneratedTasks() {
         List<ContentSummaryDto> contents = contentRepository.findContents(null, null, 50);
+        Map<String, AnomalyRuleDto> rules = platformRepository.findAnomalyRules().stream()
+                .filter(AnomalyRuleDto::enabled)
+                .collect(Collectors.toMap(AnomalyRuleDto::ruleKey, rule -> rule, (left, right) -> right));
         List<ContentSentiment> sentiments = contents.stream()
                 .map(content -> new ContentSentiment(content, contentRepository.findSentiment(content.contentId())))
                 .toList();
         List<TaskDto> tasks = new ArrayList<>();
 
-        contents.stream().findFirst().ifPresent(content -> tasks.add(task(
-                "auto-review-content-" + content.contentId(),
-                "优先复盘高热内容", "高优先级", "warning",
-                content.title() + " 的归一化热度领先，建议复盘互动、时间轴和文本反馈。",
-                content, 10
-        )));
+        addTopContentTask(tasks, rules.get("heat_top"), contents, "auto-review-content-", "优先复盘高热内容", "平台热度为 ", "，建议复盘互动、时间轴和文本反馈。", 10, TaskStatusService::platformHeatScore);
 
-        sentiments.stream()
-                .filter(item -> item.sentiment().negativeRatio() >= 0.25)
-                .max(Comparator.comparingDouble(item -> item.sentiment().negativeRatio()))
-                .ifPresent(item -> tasks.add(task(
-                        "auto-negative-risk-content-" + item.content().contentId(),
-                        "处理负向反馈风险", "风险", "danger",
-                        item.content().title() + " 的负向反馈占比为 " + formatPercent(item.sentiment().negativeRatio())
-                                + "，建议查看高影响互动并制定回应。",
-                        item.content(), 20
-                )));
+        AnomalyRuleDto negativeRule = rules.get("negative_risk");
+        if (negativeRule != null) {
+            sentiments.stream().filter(item -> item.sentiment().totalCount() > 0 && matches(negativeRule, item.sentiment().negativeRatio()))
+                    .max(Comparator.comparingDouble(item -> item.sentiment().negativeRatio()))
+                    .ifPresent(item -> tasks.add(task("auto-negative-risk-content-" + item.content().contentId(), "处理负向反馈风险", negativeRule,
+                            item.content().title() + " 的负向反馈占比为 " + formatPercent(item.sentiment().negativeRatio()) + "，已触发规则阈值 " + formatPercent(negativeRule.threshold()) + "，建议查看高影响互动并制定回应。", item.content(), 20)));
+        }
 
-        contents.stream()
-                .flatMap(content -> contentRepository.findTimeline(content.contentId(), "danmaku").stream()
-                        .map(point -> new ContentTimeline(content, point)))
-                .max(Comparator.comparingLong(item -> item.timeline().interactionCount()))
-                .ifPresent(item -> tasks.add(task(
-                        "auto-danmaku-hotspot-content-" + item.content().contentId(),
-                        "复盘互动高峰片段", "可执行", "primary",
-                        item.content().title() + " 在 " + formatVideoTime(item.timeline().timeBucket())
-                                + " 附近出现互动高峰，建议回看相邻片段。",
-                        item.content(), 30
-                )));
+        AnomalyRuleDto danmakuRule = rules.get("danmaku_hotspot");
+        if (danmakuRule != null) {
+            contents.stream().flatMap(content -> contentRepository.findTimeline(content.contentId(), "danmaku").stream().map(point -> new ContentTimeline(content, point)))
+                    .filter(item -> matches(danmakuRule, item.timeline().interactionCount()))
+                    .max(Comparator.comparingLong(item -> item.timeline().interactionCount()))
+                    .ifPresent(item -> tasks.add(task("auto-danmaku-hotspot-content-" + item.content().contentId(), "复盘互动高峰片段", danmakuRule,
+                            item.content().title() + " 在 " + formatVideoTime(item.timeline().timeBucket()) + " 附近的互动数为 " + item.timeline().interactionCount() + "，已触发规则阈值 " + trimNumber(danmakuRule.threshold()) + "，建议回看相邻片段。", item.content(), 30)));
+        }
 
-        sentiments.stream()
-                .filter(item -> item.sentiment().totalCount() > 0 && item.sentiment().positiveRatio() >= 0.6)
-                .max(Comparator.comparingDouble(item -> item.sentiment().positiveRatio()))
-                .ifPresent(item -> tasks.add(task(
-                        "auto-positive-sample-content-" + item.content().contentId(),
-                        "沉淀正向内容样本", "增长", "success",
-                        item.content().title() + " 的正向反馈占比为 " + formatPercent(item.sentiment().positiveRatio())
-                                + "，建议沉淀为可复用内容样本。",
-                        item.content(), 40
-                )));
-
+        addTopContentTask(tasks, rules.get("interaction_high"), contents, "auto-interaction-high-content-", "沉淀高互动内容样本", "互动率为 ", "，建议沉淀为可复用内容样本。", 40, TaskStatusService::interactionRate);
         return tasks;
     }
 
-    private static TaskDto task(String taskId, String title, String level, String type, String text,
-                                ContentSummaryDto content, int sortNo) {
-        return new TaskDto(taskId, title, level, type, text, content.contentId(), content.platformCode(),
-                content.externalContentId(), "auto", sortNo, "todo", null,
-                LocalDateTime.now(), LocalDateTime.now());
+    private static void addTopContentTask(List<TaskDto> tasks, AnomalyRuleDto rule, List<ContentSummaryDto> contents, String taskPrefix, String title, String valuePrefix, String suffix, int sortNo, ToDoubleFunction<ContentSummaryDto> extractor) {
+        if (rule == null) return;
+        contents.stream().filter(content -> matches(rule, extractor.applyAsDouble(content))).max(Comparator.comparingDouble(extractor))
+                .ifPresent(content -> tasks.add(task(taskPrefix + content.contentId(), title, rule,
+                        content.title() + " 的" + valuePrefix + formatRuleValue(rule.metric(), extractor.applyAsDouble(content)) + "，已触发规则阈值 " + formatRuleValue(rule.metric(), rule.threshold()) + suffix, content, sortNo)));
     }
 
-    private static String formatPercent(double value) {
-        return String.format("%.1f%%", value * 100);
+    private static TaskDto task(String taskId, String title, AnomalyRuleDto rule, String text, ContentSummaryDto content, int sortNo) {
+        return new TaskDto(taskId, title, levelLabel(rule.level()), rule.level(), text, content.contentId(), content.platformCode(), content.externalContentId(), "auto", sortNo, "todo", null, LocalDateTime.now(), LocalDateTime.now());
     }
 
-    private static String formatVideoTime(int seconds) {
-        return seconds / 60 + ":" + String.format("%02d", seconds % 60);
+    private static boolean matches(AnomalyRuleDto rule, double value) {
+        return switch (rule.operator()) {
+            case ">" -> value > rule.threshold(); case ">=" -> value >= rule.threshold(); case "<" -> value < rule.threshold(); case "<=" -> value <= rule.threshold(); case "=", "==" -> Double.compare(value, rule.threshold()) == 0; default -> false;
+        };
     }
-
+    private static double platformHeatScore(ContentSummaryDto content) { return content.platformHeatScore() == null ? Double.NEGATIVE_INFINITY : content.platformHeatScore(); }
+    private static double interactionRate(ContentSummaryDto content) { if (content.viewCount() == null || content.viewCount() <= 0) return 0; return (double) (value(content.likeCount()) + value(content.commentCount()) + value(content.shareCount()) + value(content.favoriteCount()) + value(content.danmakuCount()) + value(content.coinCount())) / content.viewCount(); }
+    private static long value(Long number) { return number == null ? 0L : number; }
+    private static String levelLabel(String level) { return Map.of("danger", "风险", "warning", "预警", "success", "增长", "primary", "提示").getOrDefault(level, "提示"); }
+    private static String formatRuleValue(String metric, double value) { return metric.toLowerCase().contains("ratio") ? formatPercent(value) : trimNumber(value); }
+    private static String trimNumber(double value) { return value == Math.rint(value) ? String.format("%.0f", value) : String.format("%.3f", value); }
+    private static String formatPercent(double value) { return String.format("%.1f%%", value * 100); }
+    private static String formatVideoTime(int seconds) { return seconds / 60 + ":" + String.format("%02d", seconds % 60); }
     private record ContentSentiment(ContentSummaryDto content, SentimentSummaryDto sentiment) { }
-
     private record ContentTimeline(ContentSummaryDto content, TimelinePointDto timeline) { }
 }

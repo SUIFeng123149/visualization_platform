@@ -6,9 +6,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,6 +30,17 @@ class ContentControllerTest {
                 .andExpect(jsonPath("$.data", hasSize(4)))
                 .andExpect(jsonPath("$.data[0].connectorName").value("bilibili-export-v1"))
                 .andExpect(jsonPath("$.data[0].capabilities.comments").value(true));
+    }
+
+    @Test
+    void platformPreflightRejectsUnknownOrDisabledPlatforms() throws Exception {
+        mockMvc.perform(post("/api/platform/platforms/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"platformCodes\":[\"bilibili\",\"kuaishou\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(false))
+                .andExpect(jsonPath("$.data.configuredPlatformCodes", hasItem("bilibili")))
+                .andExpect(jsonPath("$.data.missingPlatformCodes", hasItem("kuaishou")));
     }
 
     @Test

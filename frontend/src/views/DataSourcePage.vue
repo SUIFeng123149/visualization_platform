@@ -10,7 +10,7 @@
     <div class="panel-header">
       <div>
         <div class="panel-title">数据源与同步监控</div>
-        <div class="panel-desc">检查 DWD、DWS、ADS、OPS 各层数据表是否可访问、是否有数据、最近更新时间是否正常。</div>
+        <div class="panel-desc">检查 v2 目录、事实、配置、运营和平台入库汇总是否可访问、是否有数据及最近更新时间是否正常。</div>
       </div>
       <el-button type="primary" @click="loadStatuses">刷新状态</el-button>
     </div>
@@ -49,12 +49,14 @@ const statuses = ref([])
 
 const summaryCards = computed(() => {
   const healthy = statuses.value.filter((item) => item.status === 'healthy').length
-  const empty = statuses.value.filter((item) => item.status === 'empty' || item.status === 'stale').length
+  const empty = statuses.value.filter((item) => item.status === 'empty').length
+  const stale = statuses.value.filter((item) => item.status === 'stale').length
   const missing = statuses.value.filter((item) => item.status === 'missing').length
   const totalRows = statuses.value.reduce((sum, item) => sum + item.rowCount, 0)
   return [
     { label: '健康数据表', value: healthy },
     { label: '空表', value: empty },
+    { label: '已过期', value: stale },
     { label: '不可访问', value: missing },
     { label: '总行数', value: formatNumber(totalRows) },
   ]
