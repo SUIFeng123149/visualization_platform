@@ -3,6 +3,7 @@ import {
   fetchCommentInteractionTypes,
   fetchCommentInsightSummary,
   fetchCommentInsightTrends,
+  fetchCommentTopics,
   fetchNegativeInteractions,
 } from '@/api/content'
 
@@ -22,6 +23,7 @@ const summary = ref(emptySummary())
 const trends = ref([])
 const negativeItems = ref([])
 const negativeTotal = ref(0)
+const topics = ref([])
 const loadingCommentInsights = ref(false)
 const commentInsightFallback = ref(false)
 const commentInsightError = ref('')
@@ -80,6 +82,7 @@ export function useCommentInsights() {
       trends.value = result.trends ?? []
       negativeItems.value = result.negativePage?.items ?? []
       negativeTotal.value = result.negativePage?.total ?? 0
+      topics.value = result.topics ?? []
       return result
     } catch (error) {
       if (requestId === commentRequestId) {
@@ -98,6 +101,7 @@ export function useCommentInsights() {
     trends.value = []
     negativeItems.value = []
     negativeTotal.value = 0
+    topics.value = []
     commentInsightFallback.value = false
     commentInsightError.value = ''
     loadingCommentInsights.value = false
@@ -111,6 +115,7 @@ export function useCommentInsights() {
     trends,
     negativeItems,
     negativeTotal,
+    topics,
     loadingCommentInsights,
     commentInsightFallback,
     commentInsightError,
@@ -123,12 +128,13 @@ export function useCommentInsights() {
 }
 
 async function requestInsightBundle(params) {
-  const [summaryData, trendData, negativePage] = await Promise.all([
+  const [summaryData, trendData, negativePage, topicData] = await Promise.all([
     fetchCommentInsightSummary(params),
     fetchCommentInsightTrends(params),
     fetchNegativeInteractions(params),
+    fetchCommentTopics(params),
   ])
-  return { summary: summaryData ?? emptySummary(), trends: trendData ?? [], negativePage }
+  return { summary: summaryData ?? emptySummary(), trends: trendData ?? [], negativePage, topics: topicData ?? [] }
 }
 
 function compactParams(params) {

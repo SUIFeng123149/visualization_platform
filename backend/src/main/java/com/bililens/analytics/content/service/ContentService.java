@@ -4,7 +4,9 @@ import com.bililens.analytics.content.dto.ContentSummaryDto;
 import com.bililens.analytics.content.dto.AccountPerformanceDto;
 import com.bililens.analytics.content.dto.CommentInsightSummaryDto;
 import com.bililens.analytics.content.dto.CommentTrendPointDto;
+import com.bililens.analytics.content.dto.CommentTopicDto;
 import com.bililens.analytics.content.dto.ContentMetricHistoryPointDto;
+import com.bililens.analytics.content.dto.DashboardSummaryDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
 import com.bililens.analytics.content.dto.KeywordDto;
@@ -41,6 +43,10 @@ public class ContentService {
 
     public List<ContentSummaryDto> getContents(String platform, String contentType, int limit) {
         return contentRepository.findContents(platform, contentType, limit);
+    }
+
+    public DashboardSummaryDto getDashboardSummary(String platform) {
+        return contentRepository.findDashboardSummary(platform);
     }
 
     public PagedContentResponse getContents(String platform, String contentType, String keyword,
@@ -160,6 +166,12 @@ public class ContentService {
         validateCommentInsightFilters(interactionType, startDate, endDate);
         return contentRepository.findCommentInsightTrends(
                 platform, interactionType, sqlDate(startDate), sqlDate(endDate));
+    }
+
+    public List<CommentTopicDto> getCommentTopics(String platform, String interactionType,
+                                                   LocalDate startDate, LocalDate endDate, int limit) {
+        validateCommentInsightFilters(interactionType, startDate, endDate);
+        return contentRepository.findCommentTopics(platform, interactionType, sqlDate(startDate), sqlDate(endDate), limit);
     }
 
     public PagedNegativeInteractionResponse getNegativeInteractions(String platform, String interactionType,

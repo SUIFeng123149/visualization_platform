@@ -20,6 +20,9 @@
           <strong class="chat-role-label">{{ message.role === 'user' ? '我' : 'AI助手' }}</strong>
           <div v-if="message.role === 'user'" class="user-content">{{ message.content }}</div>
           <div v-else class="assistant-content markdown-body" v-html="renderMarkdown(message.content)"></div>
+          <div v-if="message.role === 'assistant' && message.trace" class="ai-trace">
+            数据范围：{{ message.trace.page }} · 平台 {{ message.trace.platform }} · {{ message.trace.contextKeyCount }} 项上下文 · {{ message.configured ? 'Dify 已处理' : '本地摘要' }}
+          </div>
         </div>
       </div>
 
@@ -149,6 +152,8 @@ async function sendMessage() {
     id: Date.now() + 1,
     role: 'assistant',
     content: '',
+    trace: null,
+    configured: null,
   }
   messages.value.push(assistantMessage)
   const assistantMessageId = assistantMessage.id
@@ -169,6 +174,12 @@ async function sendMessage() {
         },
         onDone(payload) {
           conversationId.value = payload?.conversation_id || conversationId.value
+          updateAssistantMessage(assistantMessageId, (message) => ({
+            ...message,
+            trace: payload?.trace ?? null,
+            configured: payload?.configured ?? null,
+          }))
+          lastConfigured.value = payload?.configured ?? lastConfigured.value
         },
         onError(message) {
           throw new Error(message || 'AI助手请求失败')
@@ -179,7 +190,7 @@ async function sendMessage() {
     if (!getMessageContent(assistantMessageId)) {
       setAssistantContent(assistantMessageId, 'Dify 未返回有效内容。')
     }
-    lastConfigured.value = true
+    if (lastConfigured.value === null) lastConfigured.value = true
     await scrollChatToBottom()
   } catch (error) {
     if (!getMessageContent(assistantMessageId)) {
@@ -242,3 +253,7 @@ async function scrollChatToBottom() {
   }
 }
 </script>
+
+<style scoped>
+.ai-trace { margin-top: 10px; color: #6b7280; font-size: 12px; line-height: 1.5; }
+</style>

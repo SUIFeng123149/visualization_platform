@@ -8,6 +8,10 @@ export function fetchContents(params = {}) {
   return request('/api/v2/contents', params)
 }
 
+export function fetchDashboardSummary(params = {}) {
+  return request('/api/v2/analytics/dashboard-summary', params)
+}
+
 export function fetchPagedContents(params = {}) {
   return request('/api/v2/contents/page', params)
 }
@@ -66,6 +70,10 @@ export function fetchCommentInteractionTypes(params = {}) {
 
 export function fetchCommentInsightTrends(params = {}) {
   return request('/api/v2/analytics/comments/trends', params)
+}
+
+export function fetchCommentTopics(params = {}) {
+  return request('/api/v2/analytics/comments/topics', params)
 }
 
 export function fetchNegativeInteractions(params = {}) {

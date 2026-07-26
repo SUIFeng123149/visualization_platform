@@ -87,7 +87,7 @@ public class AiAssistantService {
         }
 
         if (!hasDifyConfig()) {
-            sendAndComplete(emitter, "message", buildLocalAnswer(request));
+            sendAndComplete(emitter, "message", buildLocalAnswer(request), buildDonePayload(request, null, false));
             return emitter;
         }
 
@@ -126,12 +126,12 @@ public class AiAssistantService {
                     if (payload.isBlank() || "[DONE]".equals(payload)) {
                         continue;
                     }
-                    handleDifySsePayload(payload, emitter, completed);
+                    handleDifySsePayload(request, payload, emitter, completed);
                 }
             }
 
             if (!completed.get()) {
-                emitter.send(SseEmitter.event().name("done").data("{}"));
+                emitter.send(SseEmitter.event().name("done").data(buildDonePayload(request, null, true)));
                 emitter.complete();
                 completed.set(true);
             }
@@ -159,7 +159,7 @@ public class AiAssistantService {
         return connection;
     }
 
-    private void handleDifySsePayload(String payload, SseEmitter emitter, AtomicBoolean completed) throws Exception {
+    private void handleDifySsePayload(AiChatRequest request, String payload, SseEmitter emitter, AtomicBoolean completed) throws Exception {
         JsonNode node = objectMapper.readTree(payload);
         String event = node.path("event").asText("");
 
@@ -172,7 +172,7 @@ public class AiAssistantService {
             }
             case "message_end" -> {
                 String conversationId = node.path("conversation_id").asText("");
-                emitter.send(SseEmitter.event().name("done").data(Map.of("conversation_id", conversationId)));
+                emitter.send(SseEmitter.event().name("done").data(buildDonePayload(request, conversationId, true)));
                 emitter.complete();
                 completed.set(true);
             }
@@ -202,10 +202,14 @@ public class AiAssistantService {
     }
 
     private void sendAndComplete(SseEmitter emitter, String eventName, Object data) {
+        sendAndComplete(emitter, eventName, data, Map.of());
+    }
+
+    private void sendAndComplete(SseEmitter emitter, String eventName, Object data, Map<String, Object> donePayload) {
         try {
             emitter.send(SseEmitter.event().name(eventName).data(normalizeEventData(eventName, data)));
             if (!"done".equals(eventName)) {
-                emitter.send(SseEmitter.event().name("done").data("{}"));
+                emitter.send(SseEmitter.event().name("done").data(donePayload));
             }
             emitter.complete();
         } catch (Exception ex) {
@@ -215,6 +219,21 @@ public class AiAssistantService {
 
     private boolean hasDifyConfig() {
         return apiKey != null && !apiKey.isBlank() && baseUrl != null && !baseUrl.isBlank();
+    }
+
+    private Map<String, Object> buildDonePayload(AiChatRequest request, String conversationId, boolean configured) {
+        Map<String, Object> trace = new HashMap<>();
+        Map<String, Object> context = request.context() == null ? Map.of() : request.context();
+        trace.put("mode", request.mode() == null || request.mode().isBlank() ? "platform-qa" : request.mode());
+        trace.put("contextKeyCount", context.size());
+        trace.put("page", String.valueOf(context.getOrDefault("page", "未标注页面")));
+        trace.put("platform", String.valueOf(context.getOrDefault("platform", "all")));
+        trace.put("generatedAt", java.time.OffsetDateTime.now().toString());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("configured", configured);
+        payload.put("trace", trace);
+        if (conversationId != null && !conversationId.isBlank()) payload.put("conversation_id", conversationId);
+        return payload;
     }
 
     private Object normalizeEventData(String eventName, Object data) {

@@ -3,7 +3,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/contents',
+    redirect: '/overview',
+  },
+  {
+    path: '/overview',
+    name: 'overview',
+    component: () => import('@/views/OverviewPage.vue'),
   },
   {
     path: '/contents',

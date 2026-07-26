@@ -58,6 +58,20 @@
       </ChartPanel>
     </section>
 
+    <section v-if="supportsCommentInsight" class="panel video-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">讨论主题</div>
+          <div class="panel-desc">从已分析互动的关键词中提取高频主题；负面关联数用于识别需要优先处理的话题。</div>
+        </div>
+      </div>
+      <el-table :data="topics" empty-text="当前筛选范围暂无可用主题词" style="width: 100%">
+        <el-table-column prop="topic" label="主题" min-width="180" />
+        <el-table-column prop="interactionCount" label="关联互动" width="140" align="right" header-align="right"><template #default="{ row }">{{ nullableCount(row.interactionCount) }}</template></el-table-column>
+        <el-table-column prop="negativeCount" label="负面关联" width="140" align="right" header-align="right"><template #default="{ row }"><el-tag :type="row.negativeCount ? 'warning' : 'success'" effect="plain">{{ nullableCount(row.negativeCount) }}</el-tag></template></el-table-column>
+      </el-table>
+    </section>
+
     <section v-if="supportsCommentInsight" class="panel video-panel comment-negative-panel">
       <div class="panel-header">
         <div>
@@ -148,6 +162,7 @@ const {
   trends,
   negativeItems,
   negativeTotal,
+  topics,
   loadingCommentInsights,
   commentInsightFallback,
   availableInteractionTypes,

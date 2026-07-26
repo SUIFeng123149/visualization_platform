@@ -72,6 +72,7 @@ watch(() => route.query.platform, (platform) => {
 }, { immediate: true })
 
 const moduleCopy = {
+  overview: ['运营仪表盘', '汇总核心表现、待处理风险和数据健康状态，作为日常运营的决策入口。'],
   contents: ['内容分析', '查看已接入视频平台的内容表现与互动数据。'],
   metrics: ['指标对比', '基于统一指标字典对比各平台最新内容快照。'],
   comment: ['互动洞察', '分析评论、回复、剧评及其情感覆盖情况。'],
@@ -87,6 +88,7 @@ const moduleCopy = {
 }
 
 const exportCopy = {
+  overview: ['运营仪表盘', '仪表盘以实时查看和跳转处置为主，不单独导出。', '暂不导出', false],
   contents: ['内容分析报表', '导出当前筛选范围内的内容快照。', '导出报表', true],
   metrics: ['指标对比报表', '导出统一指标定义与当前对比结果。', '导出报表', true],
   comment: ['互动洞察报表', '导出当前 v2 互动分析结果。', '导出报表', true],

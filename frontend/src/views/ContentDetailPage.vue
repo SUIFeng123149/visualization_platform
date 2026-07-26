@@ -221,8 +221,9 @@ async function loadInteractions() {
 
 function openChild(contentId) { router.push({ name: 'contentDetail', params: { contentId }, query: route.query }) }
 function goBack() {
-  if (route.query.platform || route.query.contentType) {
-    router.push({ name: 'contents', query: route.query })
+  if (route.query.from === 'contents' || hasContentListQuery()) {
+    const { from, ...listQuery } = route.query
+    router.push({ name: 'contents', query: listQuery })
     return
   }
   if (window.history.length > 1) {
@@ -230,6 +231,10 @@ function goBack() {
     return
   }
   router.push({ name: 'contents' })
+}
+function hasContentListQuery() {
+  return ['platform', 'contentType', 'keyword', 'allDates', 'startDate', 'endDate', 'page', 'pageSize']
+    .some((key) => typeof route.query[key] === 'string' && route.query[key] !== '')
 }
 function metric(label, value, delta, note) { return { label, value, delta, note, status: 'up', description: `${label}来自统一内容指标快照。` } }
 function count(value) { return value === null || value === undefined ? '不适用' : Number(value).toLocaleString('zh-CN') }

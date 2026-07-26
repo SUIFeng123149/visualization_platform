@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { fetchAccountPerformance, fetchContents, fetchUnifiedKeywords, fetchUnifiedTrends } from '@/api/content'
+import { fetchAccountPerformance, fetchContents, fetchDashboardSummary, fetchUnifiedKeywords, fetchUnifiedTrends } from '@/api/content'
 import { usePlatformContext } from '@/composables/usePlatformContext'
 
 const contents = ref([])
@@ -9,12 +9,14 @@ const accounts = ref([])
 const loadingUnified = ref(false)
 const loadingAccounts = ref(false)
 const unifiedError = ref('')
+const dashboardSummary = ref(null)
 
 export function useUnifiedAnalytics() {
   const { selectedPlatform } = usePlatformContext()
 
   const queryPlatform = computed(() => selectedPlatform.value === 'all' ? undefined : selectedPlatform.value)
   const summary = computed(() => {
+    if (dashboardSummary.value) return dashboardSummary.value
     const availableViews = contents.value.filter((item) => item.viewCount !== null && item.viewCount !== undefined)
     const availableHeat = contents.value.filter((item) => item.normalizedHeatScore !== null && item.normalizedHeatScore !== undefined)
     return {
@@ -33,12 +35,14 @@ export function useUnifiedAnalytics() {
     unifiedError.value = ''
     try {
       const params = { platform: queryPlatform.value }
-      const [contentRows, trendRows, keywordRows, accountRows] = await Promise.all([
+      const [summaryRow, contentRows, trendRows, keywordRows, accountRows] = await Promise.all([
+        fetchDashboardSummary(params),
         fetchContents({ ...params, limit: 100 }),
         fetchUnifiedTrends(params),
         fetchUnifiedKeywords({ ...params, limit: 20 }),
         fetchAccountPerformance({ ...params, limit: 20 }),
       ])
+      dashboardSummary.value = summaryRow
       contents.value = contentRows
       trends.value = trendRows
       keywords.value = keywordRows

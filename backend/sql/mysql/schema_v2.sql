@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS dim_content (
   INDEX idx_content_parent (parent_content_id),
   INDEX idx_content_account (account_id),
   INDEX idx_content_type_published (content_type, published_at),
+  INDEX idx_content_platform_published (platform_code, published_at, content_id),
   CONSTRAINT fk_content_platform FOREIGN KEY (platform_code) REFERENCES dim_platform(platform_code),
   CONSTRAINT fk_content_parent FOREIGN KEY (parent_content_id) REFERENCES dim_content(content_id),
   CONSTRAINT fk_content_account FOREIGN KEY (account_id) REFERENCES dim_account(account_id)
@@ -92,6 +93,7 @@ CREATE TABLE IF NOT EXISTS fact_interaction (
   raw_attributes JSON,
   UNIQUE KEY uk_interaction_external (platform_code, interaction_type, external_interaction_id),
   INDEX idx_interaction_content_type (content_id, interaction_type, captured_at),
+  INDEX idx_interaction_content_type_occurred (content_id, interaction_type, occurred_at, captured_at),
   CONSTRAINT fk_interaction_content FOREIGN KEY (content_id) REFERENCES dim_content(content_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

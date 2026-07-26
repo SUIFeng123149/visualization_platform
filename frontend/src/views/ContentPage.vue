@@ -93,11 +93,12 @@ const page = ref(Math.max(1, Number(route.query.page) || 1))
 const pageSize = ref([10, 20, 50].includes(Number(route.query.pageSize)) ? Number(route.query.pageSize) : 20)
 const keyword = ref(typeof route.query.keyword === 'string' ? route.query.keyword : '')
 const yesterdayValue = yesterday()
+const allDatesSelected = route.query.allDates === '1'
 const initialStartDate = validSelectableDate(route.query.startDate) || yesterdayValue
 const initialEndDate = validSelectableDate(route.query.endDate) || yesterdayValue
-const dateRange = ref(initialStartDate <= initialEndDate
+const dateRange = ref(allDatesSelected ? null : (initialStartDate <= initialEndDate
   ? [initialStartDate, initialEndDate]
-  : [yesterdayValue, yesterdayValue])
+  : [yesterdayValue, yesterdayValue]))
 const contentType = ref(['all', 'short_video', 'video', 'series', 'episode'].includes(route.query.contentType) ? route.query.contentType : 'all')
 const contentTypeOptions = [
   { label: '全部', value: 'all' },
@@ -154,9 +155,13 @@ watch(() => route.query.contentType, (value) => {
   if (contentType.value !== next) contentType.value = next
 })
 
-watch(() => [route.query.keyword, route.query.startDate, route.query.endDate], ([nextKeyword, nextStartDate, nextEndDate]) => {
+watch(() => [route.query.keyword, route.query.startDate, route.query.endDate, route.query.allDates], ([nextKeyword, nextStartDate, nextEndDate, nextAllDates]) => {
   const normalizedKeyword = typeof nextKeyword === 'string' ? nextKeyword : ''
   if (keyword.value !== normalizedKeyword) keyword.value = normalizedKeyword
+  if (nextAllDates === '1') {
+    if (dateRange.value !== null) dateRange.value = null
+    return
+  }
   const normalizedStartDate = validSelectableDate(nextStartDate) || dateRange.value?.[0]
   const normalizedEndDate = validSelectableDate(nextEndDate) || dateRange.value?.[1]
   if (normalizedStartDate && normalizedEndDate
@@ -224,6 +229,7 @@ function syncListQuery() {
       ...route.query,
       keyword: keyword.value.trim() || undefined,
       capturedDate: undefined,
+      allDates: dateRange.value === null ? '1' : undefined,
       startDate: dateRange.value?.[0] || undefined,
       endDate: dateRange.value?.[1] || undefined,
       page: page.value > 1 ? String(page.value) : undefined,
@@ -290,9 +296,11 @@ function openContent(contentId) {
     name: 'contentDetail',
     params: { contentId },
     query: {
+      from: 'contents',
       platform: selectedPlatform.value === 'all' ? undefined : selectedPlatform.value,
       contentType: contentType.value === 'all' ? undefined : contentType.value,
       keyword: keyword.value.trim() || undefined,
+      allDates: dateRange.value === null ? '1' : undefined,
       startDate: dateRange.value?.[0] || undefined,
       endDate: dateRange.value?.[1] || undefined,
       page: page.value > 1 ? String(page.value) : undefined,

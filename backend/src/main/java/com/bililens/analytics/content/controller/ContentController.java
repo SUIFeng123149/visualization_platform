@@ -2,9 +2,11 @@ package com.bililens.analytics.content.controller;
 
 import com.bililens.analytics.common.ApiResponse;
 import com.bililens.analytics.content.dto.ContentSummaryDto;
+import com.bililens.analytics.content.dto.DashboardSummaryDto;
 import com.bililens.analytics.content.dto.AccountPerformanceDto;
 import com.bililens.analytics.content.dto.CommentInsightSummaryDto;
 import com.bililens.analytics.content.dto.CommentTrendPointDto;
+import com.bililens.analytics.content.dto.CommentTopicDto;
 import com.bililens.analytics.content.dto.ContentMetricHistoryPointDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
@@ -54,6 +56,13 @@ public class ContentController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(500) int limit
     ) {
         return ApiResponse.ok(contentService.getContents(platform, contentType, limit));
+    }
+
+    @GetMapping("/analytics/dashboard-summary")
+    public ApiResponse<DashboardSummaryDto> getDashboardSummary(
+            @RequestParam(required = false) @Size(max = 32) String platform
+    ) {
+        return ApiResponse.ok(contentService.getDashboardSummary(platform));
     }
 
     @GetMapping("/contents/page")
@@ -168,6 +177,17 @@ public class ContentController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
         return ApiResponse.ok(contentService.getCommentInsightTrends(platform, type, startDate, endDate));
+    }
+
+    @GetMapping("/analytics/comments/topics")
+    public ApiResponse<List<CommentTopicDto>> getCommentTopics(
+            @RequestParam(required = false) @Size(max = 32) String platform,
+            @RequestParam(required = false) @Size(max = 32) String type,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "12") @Min(1) @Max(50) int limit
+    ) {
+        return ApiResponse.ok(contentService.getCommentTopics(platform, type, startDate, endDate, limit));
     }
 
     @GetMapping("/analytics/comments/negative")

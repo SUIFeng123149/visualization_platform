@@ -6,6 +6,7 @@ import com.bililens.analytics.content.dto.SentimentSummaryDto;
 import com.bililens.analytics.content.dto.TimelinePointDto;
 import com.bililens.analytics.content.repository.ContentRepository;
 import com.bililens.analytics.platform.dto.AnomalyRuleDto;
+import com.bililens.analytics.platform.dto.DataSourceStatusDto;
 import com.bililens.analytics.platform.repository.PlatformRepository;
 import com.bililens.analytics.task.dto.TaskDto;
 import com.bililens.analytics.task.dto.PagedTaskResponse;
@@ -111,7 +112,28 @@ public class TaskStatusService {
         }
 
         addTopContentTask(tasks, rules.get("interaction_high"), contents, "auto-interaction-high-content-", "沉淀高互动内容样本", "互动率为 ", "，建议沉淀为可复用内容样本。", 40, TaskStatusService::interactionRate);
+        addDataHealthTasks(tasks);
         return tasks;
+    }
+
+    private void addDataHealthTasks(List<TaskDto> tasks) {
+        platformRepository.findDataSourceStatuses().stream()
+                .filter(status -> !"healthy".equals(status.status()))
+                .forEach(status -> tasks.add(dataHealthTask(status)));
+    }
+
+    private static TaskDto dataHealthTask(DataSourceStatusDto status) {
+        String severity = switch (status.status()) {
+            case "missing" -> "danger";
+            case "stale", "empty" -> "warning";
+            default -> "primary";
+        };
+        String taskId = "auto-data-health-" + status.tableName().replaceAll("[^A-Za-z0-9_-]", "-");
+        String text = status.displayName() + " status=" + status.status() + ", rows=" + status.rowCount()
+                + (status.latestAt() == null ? ", latestAt=none." : ", latestAt=" + status.latestAt() + ".")
+                + " Check the data ingestion and analysis pipeline.";
+        return new TaskDto(taskId, "Data health issue", levelLabel(severity), severity, text, null, null, null,
+                "auto", 5, "todo", null, LocalDateTime.now(), LocalDateTime.now());
     }
 
     private static void addTopContentTask(List<TaskDto> tasks, AnomalyRuleDto rule, List<ContentSummaryDto> contents, String taskPrefix, String title, String valuePrefix, String suffix, int sortNo, ToDoubleFunction<ContentSummaryDto> extractor) {

@@ -4,7 +4,9 @@ import com.bililens.analytics.content.dto.ContentSummaryDto;
 import com.bililens.analytics.content.dto.AccountPerformanceDto;
 import com.bililens.analytics.content.dto.CommentInsightSummaryDto;
 import com.bililens.analytics.content.dto.CommentTrendPointDto;
+import com.bililens.analytics.content.dto.CommentTopicDto;
 import com.bililens.analytics.content.dto.ContentMetricHistoryPointDto;
+import com.bililens.analytics.content.dto.DashboardSummaryDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
 import com.bililens.analytics.content.dto.MetricComparisonDto;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ArrayList;
 
 @Repository
 public class ContentRepository {
@@ -97,6 +100,35 @@ public class ContentRepository {
                 .param("limit", limit)
                 .query((rs, rowNum) -> toSummary(rs))
                 .list();
+    }
+
+    public DashboardSummaryDto findDashboardSummary(String platform) {
+        return jdbcClient.sql("""
+                        select count(distinct c.content_id) as content_count,
+                               count(distinct c.platform_code) as platform_count,
+                               coalesce(sum(m.view_count), 0) as total_views,
+                               avg(m.normalized_heat_score) as average_normalized_heat,
+                               max(m.captured_at) as latest_captured_at,
+                               (
+                                   select count(*) from fact_interaction i
+                                   join dim_content interaction_content on interaction_content.content_id = i.content_id
+                                   where (:platform is null or interaction_content.platform_code = :platform)
+                               ) as interaction_count
+                        from dim_content c
+                        left join fact_content_metric_snapshot m on m.snapshot_id = (
+                            select latest.snapshot_id from fact_content_metric_snapshot latest
+                            where latest.content_id = c.content_id
+                            order by latest.captured_at desc, latest.snapshot_id desc limit 1
+                        )
+                        where (:platform is null or c.platform_code = :platform)
+                        """)
+                .param("platform", blankToNull(platform))
+                .query((rs, rowNum) -> new DashboardSummaryDto(
+                        rs.getLong("content_count"), rs.getLong("platform_count"), rs.getLong("total_views"),
+                        nullableDouble(rs, "average_normalized_heat"), rs.getLong("interaction_count"),
+                        localDateTime(rs, "latest_captured_at")
+                ))
+                .single();
     }
 
     public List<MetricDefinitionDto> findMetricDefinitions() {
@@ -605,6 +637,41 @@ public class ContentRepository {
                 .list();
     }
 
+    public List<CommentTopicDto> findCommentTopics(String platform, String interactionType, Date startDate, Date endDate, int limit) {
+        Map<String, long[]> counts = new LinkedHashMap<>();
+        jdbcClient.sql("""
+                        select a.keywords, a.sentiment_label
+                        from fact_text_analysis a
+                        join fact_interaction i on i.interaction_id = a.interaction_id
+                        join dim_content c on c.content_id = i.content_id
+                        where a.analysis_id = (
+                            select max(latest.analysis_id) from fact_text_analysis latest
+                            where latest.interaction_id = i.interaction_id
+                        )
+                          and a.keywords is not null and a.keywords <> ''
+                          and (:platform is null or c.platform_code = :platform)
+                          and (:interactionType is null or i.interaction_type = :interactionType)
+                          and (:startDate is null or coalesce(i.occurred_at, i.captured_at) >= :startDate)
+                          and (:endDate is null or coalesce(i.occurred_at, i.captured_at) < date_add(:endDate, interval 1 day))
+                        """)
+                .param("platform", blankToNull(platform))
+                .param("interactionType", blankToNull(interactionType))
+                .param("startDate", startDate)
+                .param("endDate", endDate)
+                .query((rs, rowNum) -> new TopicKeywords(rs.getString("keywords"), rs.getString("sentiment_label")))
+                .list()
+                .forEach(row -> splitKeywords(row.keywords()).forEach(topic -> {
+                    long[] topicCounts = counts.computeIfAbsent(topic, ignored -> new long[2]);
+                    topicCounts[0]++;
+                    if ("negative".equals(row.sentimentLabel())) topicCounts[1]++;
+                }));
+        return counts.entrySet().stream()
+                .sorted((left, right) -> Long.compare(right.getValue()[0], left.getValue()[0]))
+                .limit(limit)
+                .map(entry -> new CommentTopicDto(entry.getKey(), entry.getValue()[0], entry.getValue()[1]))
+                .toList();
+    }
+
     public List<AccountPerformanceDto> findAccountPerformance(String platform, int limit) {
         return jdbcClient.sql("""
                         select a.account_id, a.platform_code, a.external_account_id, a.display_name, a.account_type,
@@ -719,11 +786,24 @@ public class ContentRepository {
         return null;
     }
 
+    private static List<String> splitKeywords(String keywords) {
+        if (keywords == null || keywords.isBlank()) return List.of();
+        List<String> result = new ArrayList<>();
+        for (String candidate : keywords.split("[，,;；\\s]+")) {
+            String topic = candidate.trim();
+            if (!topic.isEmpty() && topic.length() <= 32 && !result.contains(topic)) result.add(topic);
+        }
+        return result;
+    }
+
     private static Double finiteNumber(double value) {
         return Double.isFinite(value) ? value : null;
     }
 
     private record ExtraMetricRow(String platformCode, String extraMetrics, LocalDateTime capturedAt) {
+    }
+
+    private record TopicKeywords(String keywords, String sentimentLabel) {
     }
 
     private static final class MetricAccumulator {

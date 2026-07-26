@@ -1,4 +1,5 @@
 export const navItems = [
+  { key: 'overview', label: '运营仪表盘', icon: 'Odometer' },
   { key: 'contents', label: '内容分析', icon: 'VideoCamera' },
   { key: 'metrics', label: '指标对比', icon: 'DataAnalysis' },
   { key: 'comment', label: '评论洞察', icon: 'ChatDotRound' },
