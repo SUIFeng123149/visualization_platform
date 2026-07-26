@@ -59,7 +59,7 @@ const router = useRouter()
 const route = useRoute()
 const filters = reactive({ channel: 'all', period: '30d' })
 const { platforms, selectedPlatform, loadingPlatforms, loadPlatforms } = usePlatformContext()
-const { loadUnifiedAnalytics } = useUnifiedAnalytics()
+const { loadUnifiedAnalytics, loadAccountPerformance } = useUnifiedAnalytics()
 const { summary: commentSummary } = useCommentInsights()
 loadPlatforms().catch(() => {})
 
@@ -140,6 +140,10 @@ async function handleHeaderRefresh() {
   }
   if (activeModule.value === 'comment') {
     window.dispatchEvent(new CustomEvent('video-analytics:refresh-comments'))
+    return
+  }
+  if (activeModule.value === 'creator') {
+    await loadAccountPerformance()
     return
   }
   await loadUnifiedAnalytics()

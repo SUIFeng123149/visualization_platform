@@ -32,6 +32,10 @@ export function fetchContentTimeline(contentId, type = 'danmaku') {
   return request(`/api/v2/contents/${encodeURIComponent(contentId)}/timeline`, { type })
 }
 
+export function fetchContentMetricHistory(contentId) {
+  return request(`/api/v2/contents/${encodeURIComponent(contentId)}/metric-history`)
+}
+
 export function fetchUnifiedTrends(params = {}) {
   return request('/api/v2/analytics/trends', params)
 }

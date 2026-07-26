@@ -4,6 +4,7 @@ import com.bililens.analytics.content.dto.ContentSummaryDto;
 import com.bililens.analytics.content.dto.AccountPerformanceDto;
 import com.bililens.analytics.content.dto.CommentInsightSummaryDto;
 import com.bililens.analytics.content.dto.CommentTrendPointDto;
+import com.bililens.analytics.content.dto.ContentMetricHistoryPointDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
 import com.bililens.analytics.content.dto.MetricComparisonDto;
@@ -108,6 +109,22 @@ public class ContentRepository {
                 .list();
     }
 
+    public List<ContentMetricHistoryPointDto> findMetricHistory(long contentId) {
+        return jdbcClient.sql("""
+                        select captured_at, view_count, like_count, comment_count, share_count, normalized_heat_score
+                        from fact_content_metric_snapshot
+                        where content_id = :contentId
+                        order by captured_at, snapshot_id
+                        """)
+                .param("contentId", contentId)
+                .query((rs, rowNum) -> new ContentMetricHistoryPointDto(
+                        localDateTime(rs, "captured_at"), nullableLong(rs, "view_count"),
+                        nullableLong(rs, "like_count"), nullableLong(rs, "comment_count"),
+                        nullableLong(rs, "share_count"), nullableDouble(rs, "normalized_heat_score")
+                ))
+                .list();
+    }
+
     public Optional<MetricDefinitionDto> findMetricDefinition(String metricKey) {
         return jdbcClient.sql("""
                         select metric_key, display_name, unit, scope, definition, comparable
@@ -126,7 +143,7 @@ public class ContentRepository {
         }
         String sql = """
                 select c.platform_code, count(distinct c.content_id) as content_count,
-                       count(%1$s) as available_count, avg(%1$s) as average_value,
+                       count(%1$s) as available_count, max(m.captured_at) as latest_captured_at, avg(%1$s) as average_value,
                        min(%1$s) as min_value, max(%1$s) as max_value
                 from dim_content c
                 left join fact_content_metric_snapshot m on m.snapshot_id = (
@@ -145,7 +162,8 @@ public class ContentRepository {
                 .query((rs, rowNum) -> new MetricComparisonDto(
                         metricKey, rs.getString("platform_code"), rs.getLong("content_count"),
                         rs.getLong("available_count"), nullableDouble(rs, "average_value"),
-                        nullableDouble(rs, "min_value"), nullableDouble(rs, "max_value")
+                        nullableDouble(rs, "min_value"), nullableDouble(rs, "max_value"),
+                        localDateTime(rs, "latest_captured_at")
                 ))
                 .list();
     }
@@ -154,7 +172,7 @@ public class ContentRepository {
     private List<MetricComparisonDto> findExtraMetricComparison(String metricKey, String platform, String contentType) {
         Map<String, MetricAccumulator> accumulators = new LinkedHashMap<>();
         jdbcClient.sql("""
-                        select c.platform_code, m.extra_metrics
+                        select c.platform_code, m.extra_metrics, m.captured_at
                         from dim_content c
                         left join fact_content_metric_snapshot m on m.snapshot_id = (
                             select latest.snapshot_id from fact_content_metric_snapshot latest
@@ -167,10 +185,10 @@ public class ContentRepository {
                         """)
                 .param("platform", blankToNull(platform))
                 .param("contentType", blankToNull(contentType))
-                .query((rs, rowNum) -> new ExtraMetricRow(rs.getString("platform_code"), rs.getString("extra_metrics")))
+                .query((rs, rowNum) -> new ExtraMetricRow(rs.getString("platform_code"), rs.getString("extra_metrics"), localDateTime(rs, "captured_at")))
                 .list()
                 .forEach(row -> accumulators.computeIfAbsent(row.platformCode(), ignored -> new MetricAccumulator())
-                        .add(readExtraMetric(row.extraMetrics(), metricKey)));
+                        .add(readExtraMetric(row.extraMetrics(), metricKey), row.capturedAt()));
         return accumulators.entrySet().stream()
                 .map(entry -> entry.getValue().toDto(metricKey, entry.getKey()))
                 .toList();
@@ -482,6 +500,14 @@ public class ContentRepository {
                             where latest.interaction_id = i.interaction_id
                         )
                         where a.sentiment_label = 'negative'
+                          and not exists (
+                              select 1
+                              from ops_task t
+                              join ops_task_status s on s.task_id = t.task_id
+                              where t.task_id = concat('manual-negative-interaction-', i.interaction_id)
+                                and t.source = 'manual'
+                                and s.status in ('done', 'ignored')
+                          )
                           and (:platform is null or c.platform_code = :platform)
                           and ((:interactionType is null and i.interaction_type in ('comment', 'reply', 'review'))
                                or i.interaction_type = :interactionType)
@@ -507,6 +533,30 @@ public class ContentRepository {
                 .list();
     }
 
+    public Optional<NegativeInteractionDto> findNegativeInteraction(long interactionId) {
+        return jdbcClient.sql("""
+                        select i.interaction_id, i.content_id, c.platform_code, c.external_content_id,
+                               c.title as content_title, i.interaction_type, i.user_name, i.text, i.like_count,
+                               i.occurred_at, i.captured_at, a.sentiment_score
+                        from fact_interaction i
+                        join dim_content c on c.content_id = i.content_id
+                        join fact_text_analysis a on a.analysis_id = (
+                            select max(latest.analysis_id) from fact_text_analysis latest
+                            where latest.interaction_id = i.interaction_id
+                        )
+                        where i.interaction_id = :interactionId and a.sentiment_label = 'negative'
+                        """)
+                .param("interactionId", interactionId)
+                .query((rs, rowNum) -> new NegativeInteractionDto(
+                        rs.getLong("interaction_id"), rs.getLong("content_id"), rs.getString("platform_code"),
+                        rs.getString("external_content_id"), rs.getString("content_title"),
+                        rs.getString("interaction_type"), rs.getString("user_name"), rs.getString("text"),
+                        nullableLong(rs, "like_count"), localDateTime(rs, "occurred_at"),
+                        localDateTime(rs, "captured_at"), nullableDouble(rs, "sentiment_score")
+                ))
+                .optional();
+    }
+
     public long countNegativeInteractions(String platform, String interactionType, Date startDate, Date endDate) {
         return jdbcClient.sql("""
                         select count(*)
@@ -517,6 +567,14 @@ public class ContentRepository {
                             where latest.interaction_id = i.interaction_id
                         )
                         where a.sentiment_label = 'negative'
+                          and not exists (
+                              select 1
+                              from ops_task t
+                              join ops_task_status s on s.task_id = t.task_id
+                              where t.task_id = concat('manual-negative-interaction-', i.interaction_id)
+                                and t.source = 'manual'
+                                and s.status in ('done', 'ignored')
+                          )
                           and (:platform is null or c.platform_code = :platform)
                           and ((:interactionType is null and i.interaction_type in ('comment', 'reply', 'review'))
                                or i.interaction_type = :interactionType)
@@ -665,7 +723,7 @@ public class ContentRepository {
         return Double.isFinite(value) ? value : null;
     }
 
-    private record ExtraMetricRow(String platformCode, String extraMetrics) {
+    private record ExtraMetricRow(String platformCode, String extraMetrics, LocalDateTime capturedAt) {
     }
 
     private static final class MetricAccumulator {
@@ -674,9 +732,13 @@ public class ContentRepository {
         private double sum;
         private Double min;
         private Double max;
+        private LocalDateTime latestCapturedAt;
 
-        private void add(Double value) {
+        private void add(Double value, LocalDateTime capturedAt) {
             contentCount++;
+            if (capturedAt != null && (latestCapturedAt == null || capturedAt.isAfter(latestCapturedAt))) {
+                latestCapturedAt = capturedAt;
+            }
             if (value == null) {
                 return;
             }
@@ -688,7 +750,7 @@ public class ContentRepository {
 
         private MetricComparisonDto toDto(String metricKey, String platformCode) {
             return new MetricComparisonDto(metricKey, platformCode, contentCount, availableCount,
-                    availableCount == 0 ? null : sum / availableCount, min, max);
+                    availableCount == 0 ? null : sum / availableCount, min, max, latestCapturedAt);
         }
     }
 

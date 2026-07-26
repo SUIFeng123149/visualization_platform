@@ -9,7 +9,13 @@
       placeholder="例如：这些任务应该先处理哪一个？"
     />
 
-    <section class="task-board">
+    <section class="task-queue-toolbar" aria-label="任务队列筛选">
+      <el-select v-model="taskScope" aria-label="任务状态范围" @change="handleScopeChange">
+        <el-option v-for="option in taskScopeOptions" :key="option.value" :label="option.label" :value="option.value" />
+      </el-select>
+    </section>
+
+    <section v-loading="loading" class="task-board">
       <article
         v-for="item in taskCards"
         :key="item.taskId"
@@ -46,6 +52,19 @@
         暂无运营任务。点击右上角“刷新数据”后，系统会基于内容热度、情感和互动高峰自动生成任务。
       </section>
     </section>
+    <div v-if="taskTotal > 0" class="task-pagination">
+      <span>共 {{ taskTotal }} 项</span>
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        :page-sizes="[10, 20, 50]"
+        :total="taskTotal"
+        layout="prev, pager, next, sizes"
+        background
+        @current-change="loadTasks"
+        @size-change="handlePageSizeChange"
+      />
+    </div>
   </section>
 </template>
 
@@ -54,11 +73,23 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AiInsightPanel from '@/components/ai/AiInsightPanel.vue'
-import { fetchTasks, refreshTasks, updateTaskStatus } from '@/api/tasks'
+import { fetchPagedTasks, fetchTasks, refreshTasks, updateTaskStatus } from '@/api/tasks'
 
 const router = useRouter()
 const loading = ref(false)
 const taskCards = ref([])
+const taskScope = ref('open')
+const page = ref(1)
+const pageSize = ref(10)
+const taskTotal = ref(0)
+const taskScopeOptions = [
+  { label: '进行中', value: 'open' },
+  { label: '待处理', value: 'todo' },
+  { label: '处理中', value: 'doing' },
+  { label: '已完成', value: 'done' },
+  { label: '已忽略', value: 'ignored' },
+  { label: '全部', value: 'all' },
+]
 const statusOptions = [
   { label: '待处理', value: 'todo' },
   { label: '处理中', value: 'doing' },
@@ -84,27 +115,58 @@ const taskPrompts = [
 
 onMounted(() => {
   loadTasks()
-  window.addEventListener('video-analytics:refresh-tasks', loadTasks)
+  window.addEventListener('video-analytics:refresh-tasks', refreshAndLoadTasks)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('video-analytics:refresh-tasks', loadTasks)
+  window.removeEventListener('video-analytics:refresh-tasks', refreshAndLoadTasks)
 })
 
 async function loadTasks() {
   loading.value = true
   try {
-    taskCards.value = await refreshTasks()
+    const result = await fetchPagedTasks({
+      status: taskScope.value === 'all' ? undefined : taskScope.value,
+      page: page.value,
+      pageSize: pageSize.value,
+    })
+    taskCards.value = result.items
+    taskTotal.value = result.total
+    if (!taskCards.value.length && taskTotal.value > 0 && page.value > 1) {
+      page.value -= 1
+      await loadTasks()
+    }
   } catch (error) {
     ElMessage.warning(error.message || '任务自动生成失败，正在读取已有任务')
     try {
       taskCards.value = await fetchTasks()
+      taskTotal.value = taskCards.value.length
     } catch (fallbackError) {
       ElMessage.error(fallbackError.message || '任务列表加载失败')
     }
   } finally {
     loading.value = false
   }
+}
+
+async function refreshAndLoadTasks() {
+  try {
+    await refreshTasks()
+    await loadTasks()
+  } catch (error) {
+    ElMessage.error(error.message || '浠诲姟鍒锋柊澶辫触')
+  }
+}
+
+function handleScopeChange() {
+  page.value = 1
+  loadTasks()
+}
+
+function handlePageSizeChange(size) {
+  pageSize.value = size
+  page.value = 1
+  loadTasks()
 }
 
 async function updateStatus(taskId, status) {
@@ -117,6 +179,7 @@ async function updateStatus(taskId, status) {
     const saved = await updateTaskStatus(taskId, status)
     task.status = saved.status
     task.statusUpdatedAt = saved.updatedAt
+    await loadTasks()
     ElMessage.success('任务状态已保存')
   } catch (error) {
     task.status = previousStatus

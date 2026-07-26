@@ -1,5 +1,7 @@
 package com.bililens.analytics.content.dto;
 
+import java.time.LocalDateTime;
+
 public record MetricComparisonDto(
         String metricKey,
         String platformCode,
@@ -7,6 +9,7 @@ public record MetricComparisonDto(
         long availableCount,
         Double averageValue,
         Double minValue,
-        Double maxValue
+        Double maxValue,
+        LocalDateTime latestCapturedAt
 ) {
 }

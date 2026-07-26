@@ -6,7 +6,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasItem;
@@ -22,6 +24,9 @@ class ContentControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcClient jdbcClient;
 
     @Test
     void platformsExposeCapabilities() throws Exception {
@@ -240,6 +245,37 @@ class ContentControllerTest {
                         .param("pageSize", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.total").value(4));
+    }
+
+    @Test
+    @Transactional
+    void completedOrIgnoredNegativeInteractionTasksAreExcluded() throws Exception {
+        jdbcClient.sql("""
+                        insert into fact_interaction
+                        (interaction_id, content_id, platform_code, external_interaction_id, interaction_type,
+                         user_name, text, like_count, captured_at, batch_id, raw_attributes)
+                        values (12, 1, 'bilibili', 'BILI_C3', 'comment', 'test-user', 'handled negative sample',
+                                1, '2026-05-26 10:00:00', 'mock-batch', '{}')
+                        """).update();
+        jdbcClient.sql("""
+                        insert into fact_text_analysis
+                        (analysis_id, interaction_id, sentiment_score, sentiment_label, model_version, created_at)
+                        values (12, 12, 0.1, 'negative', 'mock-v1', '2026-05-26 10:05:00')
+                        """).update();
+        jdbcClient.sql("""
+                        insert into ops_task
+                        (task_id, title, level, type, text, content_id, platform_code, external_content_id, source, sort_no, is_active)
+                        values ('manual-negative-interaction-12', 'handled', 'risk', 'danger', 'handled', 1, 'bilibili', 'BV003', 'manual', 15, 1)
+                        """).update();
+        jdbcClient.sql("""
+                        insert into ops_task_status (task_id, status)
+                        values ('manual-negative-interaction-12', 'done')
+                        """).update();
+
+        mockMvc.perform(get("/api/v2/analytics/comments/negative").param("page", "1").param("pageSize", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[*].interactionId", org.hamcrest.Matchers.not(hasItem(12))))
                 .andExpect(jsonPath("$.data.total").value(4));
     }
 

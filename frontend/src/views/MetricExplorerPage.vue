@@ -34,6 +34,15 @@
     </div>
 
     <el-alert
+      v-if="selectedDefinition"
+      :title="qualitySummary"
+      :type="qualityAlertType"
+      :closable="false"
+      show-icon
+      class="metric-explorer-alert"
+    />
+
+    <el-alert
       v-if="selectedDefinition && !selectedDefinition.comparable"
       title="该指标保留平台原始语义，请在同一平台内比较，不用于跨平台排名。"
       type="warning"
@@ -54,6 +63,14 @@
       </el-table-column>
       <el-table-column label="覆盖率" width="130" align="right" header-align="right">
         <template #default="{ row }">{{ percent(row.availableCount, row.contentCount) }}</template>
+      </el-table-column>
+      <el-table-column label="数据质量" width="130">
+        <template #default="{ row }">
+          <el-tag :type="qualityType(row)" effect="plain">{{ qualityLabel(row) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="最近快照" min-width="180">
+        <template #default="{ row }">{{ formatDateTime(row.latestCapturedAt) }}</template>
       </el-table-column>
       <el-table-column label="平均值" min-width="150" align="right" header-align="right">
         <template #default="{ row }">{{ metricValue(row.averageValue) }}</template>
@@ -83,6 +100,12 @@ const contentType = ref('all')
 const { platforms, selectedPlatform, loadPlatforms } = usePlatformContext()
 
 const selectedDefinition = computed(() => definitions.value.find((item) => item.metricKey === metricKey.value) ?? null)
+const qualitySummary = computed(() => {
+  if (!rows.value.length) return '当前筛选范围内没有可评估的数据质量样本。'
+  const healthy = rows.value.filter((row) => qualityLevel(row) === 'healthy').length
+  return `数据质量：${healthy}/${rows.value.length} 个平台的指标覆盖率不低于 80%，且最近快照未超过 7 天。`
+})
+const qualityAlertType = computed(() => rows.value.length && rows.value.every((row) => qualityLevel(row) === 'healthy') ? 'success' : 'warning')
 
 onMounted(loadPage)
 watch(selectedPlatform, loadComparison)
@@ -137,5 +160,20 @@ function metricValue(value) {
   if (unit === 'percentile') return `P${Math.round(Number(value) * 100)}`
   if (unit === 'count') return Math.round(Number(value)).toLocaleString('zh-CN')
   return Number(value).toFixed(3)
+}
+function qualityLevel(row) {
+  if (!row.contentCount || !row.availableCount) return 'missing'
+  if (Number(row.availableCount) / Number(row.contentCount) < 0.8) return 'incomplete'
+  if (!row.latestCapturedAt || Date.now() - new Date(row.latestCapturedAt).getTime() > 7 * 24 * 60 * 60 * 1000) return 'stale'
+  return 'healthy'
+}
+function qualityLabel(row) {
+  return { healthy: '可用', incomplete: '覆盖不足', stale: '已过期', missing: '无数据' }[qualityLevel(row)]
+}
+function qualityType(row) {
+  return { healthy: 'success', incomplete: 'warning', stale: 'warning', missing: 'danger' }[qualityLevel(row)]
+}
+function formatDateTime(value) {
+  return value ? String(value).replace('T', ' ').slice(0, 19) : '--'
 }
 </script>

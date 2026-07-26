@@ -1,11 +1,11 @@
 <template>
-  <section class="panel content-panel" v-loading="loadingUnified">
+  <section class="panel content-panel" v-loading="loadingAccounts">
     <div class="panel-header">
       <div>
         <div class="panel-title">发布账号表现</div>
         <div class="panel-desc">统一比较创作者、频道和发行方；平台缺失的播放或点赞指标显示为不适用。</div>
       </div>
-      <el-button :icon="Refresh" :loading="loadingUnified" @click="load">刷新</el-button>
+      <el-button :icon="Refresh" :loading="loadingAccounts" @click="load">刷新</el-button>
     </div>
     <el-table :data="accounts" empty-text="暂无账号表现数据" style="width: 100%">
       <el-table-column prop="displayName" label="账号" min-width="180" />
@@ -27,14 +27,14 @@ import { usePlatformContext } from '@/composables/usePlatformContext'
 import { useUnifiedAnalytics } from '@/composables/useUnifiedAnalytics'
 
 const { platforms, selectedPlatform, loadPlatforms } = usePlatformContext()
-const { accounts, loadingUnified, loadUnifiedAnalytics } = useUnifiedAnalytics()
+const { accounts, loadingAccounts, loadAccountPerformance } = useUnifiedAnalytics()
 
 watch(selectedPlatform, load, { immediate: true })
 
 async function load() {
   try {
     await loadPlatforms()
-    await loadUnifiedAnalytics()
+    await loadAccountPerformance()
   } catch (error) {
     ElMessage.error(error.message || '账号表现加载失败')
   }

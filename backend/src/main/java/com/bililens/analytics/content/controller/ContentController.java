@@ -5,6 +5,7 @@ import com.bililens.analytics.content.dto.ContentSummaryDto;
 import com.bililens.analytics.content.dto.AccountPerformanceDto;
 import com.bililens.analytics.content.dto.CommentInsightSummaryDto;
 import com.bililens.analytics.content.dto.CommentTrendPointDto;
+import com.bililens.analytics.content.dto.ContentMetricHistoryPointDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
 import com.bililens.analytics.content.dto.KeywordDto;
@@ -101,6 +102,11 @@ public class ContentController {
             @RequestParam(defaultValue = "danmaku") @Size(max = 32) String type
     ) {
         return ApiResponse.ok(contentService.getTimeline(contentId, type));
+    }
+
+    @GetMapping("/contents/{contentId}/metric-history")
+    public ApiResponse<List<ContentMetricHistoryPointDto>> getMetricHistory(@PathVariable @Min(1) long contentId) {
+        return ApiResponse.ok(contentService.getMetricHistory(contentId));
     }
 
     @GetMapping("/analytics/trends")

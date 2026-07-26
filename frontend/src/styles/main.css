@@ -1633,6 +1633,19 @@ select {
   gap: 14px;
 }
 
+.task-queue-toolbar,
+.task-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-pagination {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 .task-card {
   cursor: default;
 }

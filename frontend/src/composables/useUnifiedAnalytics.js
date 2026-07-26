@@ -7,6 +7,7 @@ const trends = ref([])
 const keywords = ref([])
 const accounts = ref([])
 const loadingUnified = ref(false)
+const loadingAccounts = ref(false)
 const unifiedError = ref('')
 
 export function useUnifiedAnalytics() {
@@ -50,14 +51,25 @@ export function useUnifiedAnalytics() {
     }
   }
 
+  async function loadAccountPerformance() {
+    loadingAccounts.value = true
+    try {
+      accounts.value = await fetchAccountPerformance({ platform: queryPlatform.value, limit: 20 })
+    } finally {
+      loadingAccounts.value = false
+    }
+  }
+
   return {
     contents,
     trends,
     keywords,
     accounts,
     loadingUnified,
+    loadingAccounts,
     unifiedError,
     summary,
     loadUnifiedAnalytics,
+    loadAccountPerformance,
   }
 }

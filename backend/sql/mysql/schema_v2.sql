@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS fact_content_metric_snapshot (
   extra_metrics JSON,
   raw_payload_ref VARCHAR(1000),
   UNIQUE KEY uk_metric_content_capture (content_id, captured_at, source_connector),
+  INDEX idx_metric_content_latest (content_id, captured_at, snapshot_id),
   INDEX idx_metric_connector_time (source_connector, captured_at),
   CONSTRAINT fk_metric_content FOREIGN KEY (content_id) REFERENCES dim_content(content_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

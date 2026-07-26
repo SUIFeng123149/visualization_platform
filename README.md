@@ -42,6 +42,12 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS video_analytics DEFAULT CHARA
 mysql -u root -p video_analytics < backend\sql\mysql\schema_v2.sql
 ```
 
+For an existing v2 database, run the performance migration once:
+
+```powershell
+mysql -u root -p video_analytics < backend\sql\mysql\20260723_add_metric_content_latest_index.sql
+```
+
 ### 2. 配置并启动后端
 
 ```powershell

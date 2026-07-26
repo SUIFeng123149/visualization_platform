@@ -91,11 +91,12 @@
         <el-table-column label="发生时间" width="170" align="center" header-align="center">
           <template #default="{ row }">{{ formatDateTime(row.occurredAt || row.capturedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="96" align="center" header-align="center">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openContent(row.contentId)">查看内容</el-button>
-          </template>
-        </el-table-column>
+        <el-table-column label="操作" width="160" align="center" header-align="center">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openContent(row.contentId)">查看内容</el-button>
+              <el-button link type="danger" :loading="creatingTaskId === row.interactionId" @click="createFollowUpTask(row)">纳入处置</el-button>
+            </template>
+          </el-table-column>
       </el-table>
       <div class="content-analysis-footer">
         <span>共 {{ negativeTotal }} 条负向样本</span>
@@ -127,6 +128,7 @@ import CommentSentimentTrendChart from '@/components/charts/CommentSentimentTren
 import SentimentPieChart from '@/components/charts/SentimentPieChart.vue'
 import { useCommentInsights } from '@/composables/useCommentInsights'
 import { usePlatformContext } from '@/composables/usePlatformContext'
+import { createNegativeInteractionTask } from '@/api/tasks'
 
 const route = useRoute()
 const router = useRouter()
@@ -138,6 +140,7 @@ const interactionType = ref(validInteractionType(route.query.type) || 'all')
 const trendMode = ref('日')
 const page = ref(Math.max(1, Number(route.query.page) || 1))
 const pageSize = ref([10, 20, 50].includes(Number(route.query.pageSize)) ? Number(route.query.pageSize) : 10)
+const creatingTaskId = ref(null)
 
 const { platforms, selectedPlatform, activePlatform, activeCapabilities, loadPlatforms } = usePlatformContext()
 const {
@@ -216,22 +219,18 @@ watch(
   () => [route.query.type, route.query.startDate, route.query.endDate, route.query.page, route.query.pageSize],
   async ([nextType, nextStartDate, nextEndDate, nextPage, nextPageSize]) => {
     const nextInteractionType = validInteractionType(nextType) || 'all'
-    const fallbackRange = recentDateRange(30)
-    const normalizedStartDate = validSelectableDate(nextStartDate) || fallbackRange[0]
-    const normalizedEndDate = validSelectableDate(nextEndDate) || fallbackRange[1]
+    const normalizedDateRange = routeDateRange(nextStartDate, nextEndDate)
     const normalizedPage = Math.max(1, Number(nextPage) || 1)
     const normalizedPageSize = [10, 20, 50].includes(Number(nextPageSize)) ? Number(nextPageSize) : 10
     const changed = interactionType.value !== nextInteractionType
-      || dateRange.value?.[0] !== normalizedStartDate
-      || dateRange.value?.[1] !== normalizedEndDate
+      || dateRange.value?.[0] !== normalizedDateRange?.[0]
+      || dateRange.value?.[1] !== normalizedDateRange?.[1]
       || page.value !== normalizedPage
       || pageSize.value !== normalizedPageSize
 
     if (!changed) return
     interactionType.value = nextInteractionType
-    dateRange.value = normalizedStartDate <= normalizedEndDate
-      ? [normalizedStartDate, normalizedEndDate]
-      : fallbackRange
+    dateRange.value = normalizedDateRange
     page.value = normalizedPage
     pageSize.value = normalizedPageSize
     try {
@@ -345,6 +344,18 @@ function openContent(contentId) {
   })
 }
 
+async function createFollowUpTask(row) {
+  creatingTaskId.value = row.interactionId
+  try {
+    await createNegativeInteractionTask(row.interactionId)
+    ElMessage.success('已纳入处置任务，可在任务中心跟踪状态')
+  } catch (error) {
+    ElMessage.error(error.message || '创建处置任务失败')
+  } finally {
+    creatingTaskId.value = null
+  }
+}
+
 function validInteractionType(value) {
   return typeof value === 'string' && ['comment', 'reply', 'review'].includes(value) ? value : null
 }
@@ -376,6 +387,15 @@ function disableFutureDate(date) {
 
 function validSelectableDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && value <= dateValue(new Date()) ? value : null
+}
+
+function routeDateRange(startDate, endDate) {
+  const normalizedStartDate = validSelectableDate(startDate)
+  const normalizedEndDate = validSelectableDate(endDate)
+  if (!normalizedStartDate && !normalizedEndDate) return null
+  return normalizedStartDate && normalizedEndDate && normalizedStartDate <= normalizedEndDate
+    ? [normalizedStartDate, normalizedEndDate]
+    : null
 }
 
 function platformName(code) {

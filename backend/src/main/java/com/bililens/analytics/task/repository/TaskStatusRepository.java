@@ -1,6 +1,7 @@
 package com.bililens.analytics.task.repository;
 
 import com.bililens.analytics.task.dto.TaskDto;
+import com.bililens.analytics.task.dto.PagedTaskResponse;
 import com.bililens.analytics.task.dto.TaskStatusDto;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -61,6 +62,50 @@ public class TaskStatusRepository {
                         toLocalDateTime(rs.getTimestamp("updated_at"))
                 ))
                 .list();
+    }
+
+    public PagedTaskResponse findActiveTasks(String status, int page, int pageSize) {
+        int offset = Math.max(0, (page - 1) * pageSize);
+        List<TaskDto> items = jdbcClient.sql("""
+                        select t.task_id, t.title, t.level, t.type, t.text, t.content_id, t.platform_code,
+                               t.external_content_id, t.source, t.sort_no,
+                               coalesce(s.status, 'todo') as status,
+                               s.updated_at as status_updated_at,
+                               t.created_at, t.updated_at
+                        from ops_task t
+                        left join ops_task_status s on t.task_id = s.task_id
+                        where t.is_active = 1
+                          and (:status is null
+                               or (:status = 'open' and coalesce(s.status, 'todo') in ('todo', 'doing'))
+                               or coalesce(s.status, 'todo') = :status)
+                        order by t.sort_no, t.created_at, t.task_id
+                        limit :pageSize offset :offset
+                        """)
+                .param("status", status)
+                .param("pageSize", pageSize)
+                .param("offset", offset)
+                .query((rs, rowNum) -> new TaskDto(
+                        rs.getString("task_id"), rs.getString("title"), rs.getString("level"),
+                        rs.getString("type"), rs.getString("text"), rs.getObject("content_id", Long.class),
+                        rs.getString("platform_code"), rs.getString("external_content_id"), rs.getString("source"),
+                        rs.getInt("sort_no"), rs.getString("status"),
+                        toLocalDateTime(rs.getTimestamp("status_updated_at")),
+                        toLocalDateTime(rs.getTimestamp("created_at")), toLocalDateTime(rs.getTimestamp("updated_at"))
+                ))
+                .list();
+        Long total = jdbcClient.sql("""
+                        select count(*)
+                        from ops_task t
+                        left join ops_task_status s on t.task_id = s.task_id
+                        where t.is_active = 1
+                          and (:status is null
+                               or (:status = 'open' and coalesce(s.status, 'todo') in ('todo', 'doing'))
+                               or coalesce(s.status, 'todo') = :status)
+                        """)
+                .param("status", status)
+                .query(Long.class)
+                .single();
+        return new PagedTaskResponse(items, page, pageSize, total == null ? 0 : total);
     }
 
     public boolean existsTask(String taskId) {

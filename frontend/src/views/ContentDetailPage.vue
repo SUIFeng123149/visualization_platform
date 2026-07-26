@@ -14,6 +14,17 @@
 
     <MetricGrid v-if="content" :metrics="metrics" />
 
+    <section v-if="content" class="panel content-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">指标生命周期</div>
+          <div class="panel-desc">基于每次入库的内容指标快照观察播放、点赞和评论的累计变化。</div>
+        </div>
+      </div>
+      <ContentMetricHistoryChart v-if="metricHistory.length" :data="metricHistory" />
+      <div v-else class="empty-state small">暂未积累足够的历史快照；后续同步后将在此显示趋势。</div>
+    </section>
+
     <section v-if="content" class="detail-grid">
       <section class="panel detail-data-card content-capabilities">
         <div class="panel-header">
@@ -118,12 +129,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MetricGrid from '@/components/metrics/MetricGrid.vue'
 import InteractionTimelineChart from '@/components/charts/InteractionTimelineChart.vue'
+import ContentMetricHistoryChart from '@/components/charts/ContentMetricHistoryChart.vue'
 import {
   fetchContent,
   fetchContentChildren,
   fetchContentInteractions,
   fetchContentSentiment,
   fetchContentTimeline,
+  fetchContentMetricHistory,
 } from '@/api/content'
 import { usePlatformContext } from '@/composables/usePlatformContext'
 
@@ -134,6 +147,7 @@ const content = ref(null)
 const sentiment = ref(null)
 const interactions = ref([])
 const timeline = ref([])
+const metricHistory = ref([])
 const children = ref([])
 const interactionType = ref('all')
 const interactionPage = ref(1)
@@ -176,11 +190,12 @@ async function loadDetail(contentId) {
   try {
     await loadPlatforms()
     content.value = await fetchContent(contentId)
-    const requests = [fetchContentSentiment(contentId), fetchContentInteractions(contentId, { limit: 100 })]
+    const requests = [fetchContentSentiment(contentId), fetchContentInteractions(contentId, { limit: 100 }), fetchContentMetricHistory(contentId)]
     if (content.value.contentType === 'series') requests.push(fetchContentChildren(contentId))
-    const [sentimentData, interactionData, childData = []] = await Promise.all(requests)
+    const [sentimentData, interactionData, historyData, childData = []] = await Promise.all(requests)
     sentiment.value = sentimentData
     interactions.value = interactionData
+    metricHistory.value = historyData
     children.value = childData
     timeline.value = supportsTimeline.value ? await fetchContentTimeline(contentId, timelineType.value) : []
     interactionType.value = 'all'

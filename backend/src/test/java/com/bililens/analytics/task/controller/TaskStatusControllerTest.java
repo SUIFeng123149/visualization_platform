@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -68,6 +69,32 @@ class TaskStatusControllerTest {
                 .andExpect(jsonPath("$.data[*].source", hasItem("auto")))
                 .andExpect(jsonPath("$.data[*].taskId", hasItem("auto-review-content-3")))
                 .andExpect(jsonPath("$.data[*].contentId", hasItem(3)));
+    }
+
+    @Test
+    void tasksCanBePagedAndFilteredByOpenStatus() throws Exception {
+        insertTask("task-page-todo", null, null, null);
+        insertTask("task-page-done", null, null, null);
+        mockMvc.perform(put("/api/tasks/statuses/task-page-done")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"done\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/page").param("status", "open").param("page", "1").param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.items[*].taskId", hasItem("task-page-todo")))
+                .andExpect(jsonPath("$.data.items[*].taskId", org.hamcrest.Matchers.not(hasItem("task-page-done"))));
+    }
+
+    @Test
+    void negativeInteractionCanBeCreatedAsManualTask() throws Exception {
+        mockMvc.perform(post("/api/tasks/negative-interactions/3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.taskId").value("manual-negative-interaction-3"))
+                .andExpect(jsonPath("$.data.source").value("manual"))
+                .andExpect(jsonPath("$.data.status").value("todo"));
     }
 
     @Test

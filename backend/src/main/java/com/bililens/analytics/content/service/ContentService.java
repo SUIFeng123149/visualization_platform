@@ -4,6 +4,7 @@ import com.bililens.analytics.content.dto.ContentSummaryDto;
 import com.bililens.analytics.content.dto.AccountPerformanceDto;
 import com.bililens.analytics.content.dto.CommentInsightSummaryDto;
 import com.bililens.analytics.content.dto.CommentTrendPointDto;
+import com.bililens.analytics.content.dto.ContentMetricHistoryPointDto;
 import com.bililens.analytics.content.dto.InteractionDto;
 import com.bililens.analytics.content.dto.InteractionTypeCountDto;
 import com.bililens.analytics.content.dto.KeywordDto;
@@ -82,6 +83,11 @@ public class ContentService {
         String type = interactionType == null || interactionType.isBlank() ? "danmaku" : interactionType.trim();
         validateInteractionType(type);
         return contentRepository.findTimeline(contentId, type);
+    }
+
+    public List<ContentMetricHistoryPointDto> getMetricHistory(long contentId) {
+        getContent(contentId);
+        return contentRepository.findMetricHistory(contentId);
     }
 
     public List<TrendPointDto> getTrends(String platform, LocalDate startDate, LocalDate endDate) {

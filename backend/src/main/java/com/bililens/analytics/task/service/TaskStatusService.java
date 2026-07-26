@@ -1,12 +1,14 @@
 package com.bililens.analytics.task.service;
 
 import com.bililens.analytics.content.dto.ContentSummaryDto;
+import com.bililens.analytics.content.dto.NegativeInteractionDto;
 import com.bililens.analytics.content.dto.SentimentSummaryDto;
 import com.bililens.analytics.content.dto.TimelinePointDto;
 import com.bililens.analytics.content.repository.ContentRepository;
 import com.bililens.analytics.platform.dto.AnomalyRuleDto;
 import com.bililens.analytics.platform.repository.PlatformRepository;
 import com.bililens.analytics.task.dto.TaskDto;
+import com.bililens.analytics.task.dto.PagedTaskResponse;
 import com.bililens.analytics.task.dto.TaskStatusDto;
 import com.bililens.analytics.task.repository.TaskStatusRepository;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,12 @@ public class TaskStatusService {
 
     public List<TaskStatusDto> getTaskStatuses() { return taskStatusRepository.findAll(); }
     public List<TaskDto> getTasks() { return taskStatusRepository.findActiveTasks(); }
+    public PagedTaskResponse getTasksPage(String status, int page, int pageSize) {
+        if (status != null && !List.of("open", "todo", "doing", "done", "ignored").contains(status)) {
+            throw new IllegalArgumentException("Unsupported task status: " + status);
+        }
+        return taskStatusRepository.findActiveTasks(status, page, pageSize);
+    }
 
     public List<TaskDto> refreshGeneratedTasks() {
         taskStatusRepository.deactivateAutoTasks();
@@ -44,6 +52,33 @@ public class TaskStatusService {
         if (taskId == null || taskId.isBlank()) throw new IllegalArgumentException("taskId is required");
         if (!taskStatusRepository.existsTask(taskId)) throw new IllegalArgumentException("运营任务不存在: " + taskId);
         return taskStatusRepository.upsert(taskId, status);
+    }
+
+    public TaskDto createNegativeInteractionTask(long interactionId) {
+        NegativeInteractionDto interaction = contentRepository.findNegativeInteraction(interactionId)
+                .orElseThrow(() -> new IllegalArgumentException("Negative interaction not found: " + interactionId));
+        String taskId = "manual-negative-interaction-" + interaction.interactionId();
+        TaskDto task = new TaskDto(
+                taskId,
+                "处理负向互动",
+                "风险",
+                "danger",
+                negativeInteractionTaskText(interaction),
+                interaction.contentId(),
+                interaction.platformCode(),
+                interaction.externalContentId(),
+                "manual",
+                15,
+                "todo",
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now()
+        );
+        taskStatusRepository.upsertTask(task);
+        return taskStatusRepository.findActiveTasks().stream()
+                .filter(item -> item.taskId().equals(taskId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Failed to create negative interaction task"));
     }
 
     private List<TaskDto> buildGeneratedTasks() {
@@ -103,6 +138,15 @@ public class TaskStatusService {
     private static String trimNumber(double value) { return value == Math.rint(value) ? String.format("%.0f", value) : String.format("%.3f", value); }
     private static String formatPercent(double value) { return String.format("%.1f%%", value * 100); }
     private static String formatVideoTime(int seconds) { return seconds / 60 + ":" + String.format("%02d", seconds % 60); }
+    private static String negativeInteractionTaskText(NegativeInteractionDto interaction) {
+        String text = interaction.text() == null ? "" : interaction.text().replaceAll("\\s+", " ").trim();
+        if (text.length() > 240) text = text.substring(0, 240) + "...";
+        String user = interaction.userName() == null || interaction.userName().isBlank() ? "匿名用户" : interaction.userName();
+        String likes = interaction.likeCount() == null ? "--" : interaction.likeCount().toString();
+        return "负向" + interaction.interactionType() + "来自" + user + "，点赞 " + likes
+                + "，情感分 " + (interaction.sentimentScore() == null ? "--" : String.format("%.2f", interaction.sentimentScore()))
+                + "。原文：" + text + "。请评估问题、制定回应，并在完成后更新处置状态。";
+    }
     private record ContentSentiment(ContentSummaryDto content, SentimentSummaryDto sentiment) { }
     private record ContentTimeline(ContentSummaryDto content, TimelinePointDto timeline) { }
 }
