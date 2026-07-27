@@ -1,6 +1,6 @@
-[submodule "bilibili"]
-	path = bilibili
-	url  = https://gitee.com/qinzihang2006/bilibili
+[submodule "video_crawler"]
+	path = video_crawler
+	url  = https://github.com/qzh200/video-crawler-ai
 
 [submodule "bilibili_data_pipeline"]
 	path = bilibili_data_pipeline

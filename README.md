@@ -1,39 +1,57 @@
-# 通用视频网站数据可视化平台
+# BiLens — 多平台视频内容分析平台
 
-面向多视频平台的内容、互动、情感和账号数据分析系统。平台以统一数据模型为核心，不依赖 BVID、UP 主、投币等单一平台概念；平台特有字段保留在原始属性或扩展指标中。
+**BiLens** 是一套面向多视频平台（B 站、抖音、爱奇艺、优酷等）的内容分析可视化系统。以统一数据模型为核心，不依赖单一平台的专有概念，实现跨平台内容可比。
 
-## 系统边界
+## 系统架构
 
-| 组件 | 职责 |
-| --- | --- |
-| 爬虫平台 | 按 URL 创建任务，管理认证档案，提供视频指标、评论与带时间文本数据。 |
-| 数据清洗与分析 | 保存原始响应，转换 v2 JSONL，计算情感、关键词和归一化热度，导入 MySQL。 |
-| 本项目后端 | 查询标准数据、提供分析 API、平台代理爬虫任务和配置管理。 |
-| 本项目前端 | 展示内容分析、指标对比、互动洞察、账号画像和报表导出。 |
-
-完整字段、入库顺序和验收标准见 [数据清洗与分析对接指南](docs/数据清洗与分析对接指南.md)。
-
-## 主要能力
-
-- 多平台内容、账号、指标快照和互动数据查询。
-- 内容复盘：指标、互动情感、弹幕/字幕等时间文本按平台能力降级展示。
-- 统一指标字典与跨平台可比性标记。
-- 评论、回复、剧评和弹幕的情感、关键词分析。
-- 平台、指标、预警规则和报表历史管理。
-- Excel 导出当前页面数据；爬虫任务因上游未提供任务列表接口，不支持历史导出。
-- 爬虫平台代理：认证档案创建/校验/启停，任务创建/查询/取消/恢复。
-
-## 目录
-
-```text
-frontend/                    Vue 3 可视化界面
-backend/                     Spring Boot API 与 MySQL 查询层
-backend/sql/mysql/schema_v2.sql  新库完整结构和基础字典
-docs/                        数据协议与对接文档
-openapi(2).json              爬虫平台 OpenAPI 定义
+```
+                    ┌───────────────────┐
+                    │   MySQL 统一数仓    │
+                    │  video_analytics   │
+                    └────────┬──────────┘
+                             │
+             ┌───────────────┼───────────────┐
+             │               │               │
+             ▼               ▼               ▼
+  ┌───────────────────┐ ┌──────────────────┐
+  │  Spring Boot      │ │  Dify AI 助手    │
+  │  REST API         │ │  LLM 问答分析    │
+  │  内容·指标·互动·情感 │ │                  │
+  └─────────┬─────────┘ └──────────────────┘
+            │
+            ▼
+  ┌────────────────────────────────────┐
+  │  Vue 3 可视化仪表盘 (Element Plus)  │
+  │  总览 · 内容 · 指标 · 评论 · 创作者   │
+  │  采集 · 报表 · AI 助手             │
+  └────────────────────────────────────┘
 ```
 
-## 新环境启动
+## 模块说明
+
+| 模块 | 目录 | 技术栈 | 职责 |
+|------|------|--------|------|
+| **后端 API** | `backend/` | Spring Boot 4, Java 17, MySQL 8 | 提供 RESTful 查询接口：内容、指标快照、互动、情感分析、创作者画像、采集任务代理 |
+| **前端仪表盘** | `frontend/` | Vue 3, Element Plus, ECharts, Vite | 多页面可视化：总览面板、内容列表与详情、指标对比、评论分析、创作者画像、数据采集、报表导出、AI 助手 |
+| **AI 能力** | `hrbust-dify-re/` | Dify (LLM 应用平台) | Fork 自 Dify，为 AI 助手提供 LLM 对话、知识库、工作流编排能力 |
+| **文档/协议** | `docs/` | — | 统一数据协议 v2 |
+
+## 核心能力
+
+- **多平台统一数据模型** — 平台特有字段保留在原始属性或扩展指标，核心维度（内容、账号、指标、互动）跨平台兼容
+- **内容全维度分析** — 指标快照对比、互动情感分析、弹幕/评论时间文本降级展示
+- **统一指标字典** — 所有指标带定义和跨平台可比性标记，不支持字段保持 NULL 而非填零
+- **平台热度归一化** — 支持平台内排行和跨平台百分位比较
+- **AI 辅助分析** — 集成 LLM 能力，支持自然语言问答式数据分析
+- **Excel 导出** — 当前页面数据一键导出
+
+## 快速开始
+
+### 前置条件
+
+- JDK 17
+- Node.js 18+
+- MySQL 8.0
 
 ### 1. 创建数据库
 
@@ -42,30 +60,18 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS video_analytics DEFAULT CHARA
 mysql -u root -p video_analytics < backend\sql\mysql\schema_v2.sql
 ```
 
-For an existing v2 database, run the performance migration once:
-
-```powershell
-mysql -u root -p video_analytics < backend\sql\mysql\20260723_add_metric_content_latest_index.sql
-```
-
-### 2. 配置并启动后端
+### 2. 启动后端
 
 ```powershell
 cd backend
 $env:ANALYTICS_DB_NAME = "video_analytics"
 $env:MYSQL_USERNAME = "root"
-$env:MYSQL_PASSWORD = "你的数据库密码"
-
-# 爬虫服务可用时再设置；未设置时采集页会显示“暂未接入”。
-$env:CRAWLER_BASE_URL = "http://crawler-host:port"
-$env:CRAWLER_API_KEY = "可选的 API Key"
-
+$env:MYSQL_PASSWORD = "your_password"
 mvn clean spring-boot:run
 ```
 
-后端地址：`http://localhost:8080`，健康检查：`http://localhost:8080/actuator/health`。
-
-> IDE 必须使用 JDK 17。若出现 `class file version 65.0`，停止 IDE 的 Java 21 自动编译，执行 `mvn clean` 后重新启动。
+后端地址：`http://localhost:8080`
+健康检查：`http://localhost:8080/actuator/health`
 
 ### 3. 启动前端
 
@@ -77,30 +83,61 @@ npm run dev
 
 访问 `http://localhost:5173`。
 
-## 数据交接
+## 数据库模型
 
-清洗分析团队每个批次交付以下四个 UTF-8 JSONL 文件：
+采用星型模式设计，五张核心表：
+
+| 表 | 类型 | 说明 |
+|----|------|------|
+| `dim_platform` | 维度 | 平台定义与能力声明 |
+| `dim_account` | 维度 | 创作者/账号信息 |
+| `dim_content` | 维度 | 视频、剧集等内容元数据 |
+| `fact_content_metric_snapshot` | 事实 | 指标快照（播放、点赞、评论、分享等） |
+| `fact_interaction` | 事实 | 互动数据（评论、弹幕、剧评、回复） |
+| `fact_text_analysis` | 事实 | 文本分析结果（情感、关键词） |
+
+完整表结构见 [`backend/sql/mysql/schema_v2.sql`](backend/sql/mysql/schema_v2.sql)。
+
+## 数据流
 
 ```text
-accounts.jsonl
-contents.jsonl
-metric_snapshots.jsonl
-interactions.jsonl
-text_analyses.jsonl  # 有可分析互动文本时提供
+原始数据 ──▶ 统一数仓 ──▶ REST API ──▶ 前端仪表盘
+                             │
+                          Dify AI 助手
 ```
 
-数据合同、质量要求和交付清单见 [数据清洗与分析对接指南](docs/数据清洗与分析对接指南.md)。本项目不负责清洗分析实现；平台侧按交付合同安排入库。不要向新库写入旧版 ADS/DWD/DWS 表，也不要把不支持的指标填为 `0`。
+数据合同与质量要求见 [`docs/unified_data_contract_v2.md`](docs/unified_data_contract_v2.md)。
+
+## 前端页面
+
+| 路由 | 页面 | 说明 |
+|------|------|------|
+| `/overview` | 总览面板 | 核心指标看板、趋势图 |
+| `/contents` | 内容列表 | 全平台内容检索与筛选 |
+| `/contents/:id` | 内容详情 | 指标、互动、情感、时间文本分析 |
+| `/contents/compare` | 内容对比 | 跨内容指标对比 |
+| `/metrics` | 指标探索 | 指标字典与趋势分析 |
+| `/comment` | 评论分析 | 评论情感与关键词洞察 |
+| `/creator` | 创作者画像 | 创作者维度分析 |
+| `/collector` | 数据采集 | 爬虫任务管理与配置 |
+| `/reports` | 报表中心 | 报表生成与导出 |
+| `/ai-assistant` | AI 助手 | 自然语言数据分析 |
 
 ## 验证
 
 ```powershell
+# 后端测试
 cd backend
 mvn clean test
 
-cd ..\frontend
+# 前端构建验证
+cd frontend
 npm run build
 ```
 
-## 爬虫接口约束
+## 参与开发
 
-本项目按根目录 `openapi(2).json` 对接爬虫平台。上游当前不提供关键词搜索、账号搜索、热门内容、任务列表和直接导入接口，因此界面不会展示这些功能。采集结果须由数据清洗与分析链路完成规范化和入库后，才会出现在可视化页面。
+各模块的详细说明和开发指南见各自目录下的 README：
+
+- [后端 API](backend/README.md) — Spring Boot 接口文档
+- [AI 平台](hrbust-dify-re/README.md) — Dify 集成说明（英文）
