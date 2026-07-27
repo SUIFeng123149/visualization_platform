@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -26,6 +28,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AiAssistantService {
+
+    private static final Logger log = LoggerFactory.getLogger(AiAssistantService.class);
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -104,10 +108,12 @@ public class AiAssistantService {
     }
 
     private void streamFromDify(AiChatRequest request, SseEmitter emitter, AtomicBoolean completed) {
+        long startedAt = System.nanoTime();
         try {
             HttpURLConnection connection = openDifyStreamConnection(request);
             int status = connection.getResponseCode();
             if (status < 200 || status >= 300) {
+                log.warn("Dify streaming request failed: status={}, durationMs={}", status, elapsedMillis(startedAt));
                 String errorBody = connection.getErrorStream() == null
                         ? ""
                         : new String(connection.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -131,6 +137,7 @@ public class AiAssistantService {
             }
 
             if (!completed.get()) {
+                log.info("Dify streaming request completed: durationMs={}", elapsedMillis(startedAt));
                 emitter.send(SseEmitter.event().name("done").data(buildDonePayload(request, null, true)));
                 emitter.complete();
                 completed.set(true);
@@ -140,6 +147,10 @@ public class AiAssistantService {
                 sendAndComplete(emitter, "error", ex.getMessage() == null ? "AI 流式请求失败" : ex.getMessage());
             }
         }
+    }
+
+    private static long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
     }
 
     private HttpURLConnection openDifyStreamConnection(AiChatRequest request) throws Exception {

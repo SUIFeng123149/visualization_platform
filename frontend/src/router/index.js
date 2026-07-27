@@ -26,6 +26,11 @@ const routes = [
     component: () => import('@/views/ContentDetailPage.vue'),
   },
   {
+    path: '/contents/compare',
+    name: 'contentCompare',
+    component: () => import('@/views/ContentComparePage.vue'),
+  },
+  {
     path: '/metrics',
     name: 'metrics',
     component: () => import('@/views/MetricExplorerPage.vue'),

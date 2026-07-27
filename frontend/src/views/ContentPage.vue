@@ -71,6 +71,12 @@
       </el-table-column>
     </el-table>
     <div class="content-analysis-footer">
+      <div class="content-compare-picker">
+        <el-select v-model="comparisonIds" multiple collapse-tags collapse-tags-tooltip placeholder="选择 2 至 5 条内容对比" aria-label="选择内容横向对比" style="width: min(420px, 100%)">
+          <el-option v-for="item in contents" :key="item.contentId" :label="item.title" :value="item.contentId" :disabled="comparisonIds.length >= 5 && !comparisonIds.includes(item.contentId)" />
+        </el-select>
+        <el-button type="primary" :disabled="comparisonIds.length < 2 || comparisonIds.length > 5" @click="compareSelected">横向对比</el-button>
+      </div>
       <span>共 {{ total }} 条内容</span>
       <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev, pager, next, sizes" :page-sizes="[10, 20, 50]" background @size-change="handlePageSizeChange" @current-change="handlePageChange" />
     </div>
@@ -88,6 +94,7 @@ const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
 const contents = ref([])
+const comparisonIds = ref([])
 const total = ref(0)
 const page = ref(Math.max(1, Number(route.query.page) || 1))
 const pageSize = ref([10, 20, 50].includes(Number(route.query.pageSize)) ? Number(route.query.pageSize) : 20)
@@ -183,6 +190,7 @@ async function loadContents() {
       pageSize: pageSize.value,
     })
     contents.value = response.items
+    comparisonIds.value = comparisonIds.value.filter((id) => response.items.some((item) => item.contentId === id))
     total.value = response.total
   } catch (error) {
     ElMessage.error(error.message || '内容数据加载失败')
@@ -309,4 +317,8 @@ function openContent(contentId) {
   })
 }
 
+function compareSelected() {
+  if (comparisonIds.value.length < 2 || comparisonIds.value.length > 5) return
+  router.push({ name: 'contentCompare', query: { ids: comparisonIds.value.join(','), ...route.query } })
+}
 </script>

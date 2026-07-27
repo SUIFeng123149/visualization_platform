@@ -22,6 +22,7 @@
         <div class="panel-desc">沉淀报表生成历史，后续可扩展为异步生成、下载管理和审批流。</div>
       </div>
       <div class="panel-actions">
+        <el-button type="primary" :loading="exporting" @click="exportOperationsSnapshot">导出运营快照</el-button>
         <el-button @click="loadReports">刷新历史</el-button>
         <el-button type="primary" @click="recordDemoReport">记录完整报表</el-button>
       </div>
@@ -51,10 +52,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import AiInsightPanel from '@/components/ai/AiInsightPanel.vue'
-import { createReportHistory, fetchReportHistory } from '@/api/platform'
+import { createReportHistory, fetchDataSourceStatuses, fetchReportHistory } from '@/api/platform'
+import { fetchDashboardSummary } from '@/api/content'
+import { fetchTasks } from '@/api/tasks'
+import { exportExcelWorkbook } from '@/utils/exportExcel'
 
 const loading = ref(false)
 const reports = ref([])
+const exporting = ref(false)
 
 const summaryCards = computed(() => {
   const total = reports.value.length
@@ -114,6 +119,27 @@ async function recordDemoReport() {
     ElMessage.success(created.status === 'memory' ? '已记录，但未持久化：请创建 ops_report_history 表' : '报表历史已记录')
   } catch (error) {
     ElMessage.error(error.message || '报表历史记录失败')
+  }
+}
+
+async function exportOperationsSnapshot() {
+  exporting.value = true
+  try {
+    const [summary, tasks, sources] = await Promise.all([fetchDashboardSummary(), fetchTasks(), fetchDataSourceStatuses()])
+    const today = new Date().toISOString().slice(0, 10)
+    const fileName = `video-analytics-operations-${today}.xlsx`
+    exportExcelWorkbook(fileName, [
+      { name: '运营概览', columns: Object.keys(summary).map((key) => ({ key, label: key })), rows: [summary] },
+      { name: '待处理事项', columns: ['taskId', 'title', 'level', 'status', 'platformCode', 'text'].map((key) => ({ key, label: key })), rows: tasks },
+      { name: '数据健康', columns: ['displayName', 'layer', 'rowCount', 'latestAt', 'status', 'message'].map((key) => ({ key, label: key })), rows: sources },
+    ])
+    const created = await createReportHistory({ reportName: '运营快照报告', reportType: 'operations-snapshot', fileName, rowCount: 1 + tasks.length + sources.length, remark: '仪表盘全量汇总、待处理事项与数据健康状态。' })
+    reports.value = [created, ...reports.value]
+    ElMessage.success('运营快照报告已导出')
+  } catch (error) {
+    ElMessage.error(error.message || '运营快照报告导出失败')
+  } finally {
+    exporting.value = false
   }
 }
 

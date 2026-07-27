@@ -32,9 +32,20 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ArrayList;
+import java.util.Set;
 
 @Repository
 public class ContentRepository {
+
+    private static final Set<String> TOPIC_STOP_WORDS = Set.of(
+            "的", "了", "是", "有", "和", "都", "就", "也", "这", "那", "一个", "什么", "真的", "感觉", "可以", "视频", "内容"
+    );
+    private static final Map<String, String> TOPIC_SYNONYMS = Map.ofEntries(
+            Map.entry("好看", "正向评价"), Map.entry("不错", "正向评价"), Map.entry("喜欢", "正向评价"), Map.entry("推荐", "正向评价"),
+            Map.entry("垃圾", "负面评价"), Map.entry("烂", "负面评价"), Map.entry("失望", "负面评价"), Map.entry("难看", "负面评价"),
+            Map.entry("画质", "画面质量"), Map.entry("特效", "画面质量"),
+            Map.entry("配音", "音频表现"), Map.entry("音乐", "音频表现")
+    );
 
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
@@ -790,10 +801,18 @@ public class ContentRepository {
         if (keywords == null || keywords.isBlank()) return List.of();
         List<String> result = new ArrayList<>();
         for (String candidate : keywords.split("[，,;；\\s]+")) {
-            String topic = candidate.trim();
-            if (!topic.isEmpty() && topic.length() <= 32 && !result.contains(topic)) result.add(topic);
+            String topic = normalizeTopic(candidate);
+            if (topic != null && !result.contains(topic)) result.add(topic);
         }
         return result;
+    }
+
+    private static String normalizeTopic(String candidate) {
+        String topic = candidate == null ? "" : candidate.trim().toLowerCase();
+        if (topic.length() < 2 || topic.length() > 32 || topic.matches("[0-9.]+") || TOPIC_STOP_WORDS.contains(topic)) {
+            return null;
+        }
+        return TOPIC_SYNONYMS.getOrDefault(topic, topic);
     }
 
     private static Double finiteNumber(double value) {
